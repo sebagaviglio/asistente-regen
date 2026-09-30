@@ -61,17 +61,58 @@ TONO: cálido, claro, cercano, de "vos". Hablás de forma natural para audio —
 `.trim();
 
 /**
+ * Arma un bloque de contexto real del paciente (nombre, entrevistas previas)
+ * para anteponer a INTERVIEW_SYSTEM_PROMPT. Esto es dato real de D1, no
+ * parte del guion fijo — por eso va separado y se concatena en runtime.
+ */
+function buildPatientContextBlock({ patientFullName, priorInterviews }) {
+  const firstName = (patientFullName || '').trim().split(/\s+/)[0] || null;
+
+  const lines = ['CONTEXTO REAL DE ESTE PACIENTE (dato real, no lo inventes ni lo ignores):'];
+
+  if (firstName) {
+    lines.push(`- Se llama ${firstName}. Llamalo por su nombre de pila al saludar — NO le preguntes cómo se llama, ya lo sabés.`);
+  }
+
+  if (priorInterviews && priorInterviews.length > 0) {
+    const last = priorInterviews[0];
+    lines.push(
+      `- Ya tuvo ${priorInterviews.length === 1 ? 'una entrevista anterior' : `${priorInterviews.length} entrevistas anteriores`} con vos. No es la primera vez que hablan.`
+    );
+    if (last.motivoConsulta) {
+      lines.push(`- En la más reciente, el motivo de consulta que mencionó fue: "${last.motivoConsulta}".`);
+    }
+    lines.push(
+      '- Adaptá el saludo de apertura para que suene natural dado esto (ej. "Hola de nuevo, [nombre]" en vez de presentarte como si fuera la primera vez) — pero igual segui relevando los bloques que falten o confirmando/actualizando los que ya tenías, no asumas que no hace falta preguntar nada.'
+    );
+  } else {
+    lines.push('- Esta es su primera entrevista con vos. Seguí el guion normal de apertura y presentación.');
+  }
+
+  return lines.join('\n');
+}
+
+/**
  * Arma el RealtimeAgent para esta sesión de entrevista.
  *
  * @param {object} opts
  * @param {string} opts.interviewId
  * @param {string} opts.accessToken - access_token de Supabase del paciente
  * @param {string} opts.workerUrl - base URL del Worker
+ * @param {string} [opts.patientFullName] - nombre real del paciente, si ya está registrado
+ * @param {Array<{startedAt:string, motivoConsulta:string}>} [opts.priorInterviews] - entrevistas previas
  * @param {(category: string, endInterview: boolean) => void} opts.onHardRedFlag
  *        Se llama apenas el modelo dispara flag_red_flag, ANTES de que
  *        terminemos de persistir — así la UI corta el audio lo antes posible.
  */
-export function buildInterviewAgent({ interviewId, accessToken, workerUrl, onHardRedFlag }) {
+export function buildInterviewAgent({
+  interviewId,
+  accessToken,
+  workerUrl,
+  patientFullName,
+  priorInterviews,
+  onHardRedFlag,
+}) {
   async function postEvent(toolName, args) {
     const res = await fetch(`${workerUrl}/realtime/event`, {
       method: 'POST',
@@ -147,7 +188,7 @@ export function buildInterviewAgent({ interviewId, accessToken, workerUrl, onHar
 
   return new RealtimeAgent({
     name: 'Entrevista REGEN',
-    instructions: INTERVIEW_SYSTEM_PROMPT,
+    instructions: `${buildPatientContextBlock({ patientFullName, priorInterviews })}\n\n${INTERVIEW_SYSTEM_PROMPT}`,
     tools: [flagRedFlagTool, noteSoftFlagTool, saveInterviewBlockTool],
   });
 }

@@ -69,6 +69,8 @@ export default function InterviewScreen({ session: authSession }) {
         interviewId: sessionData.interviewId,
         accessToken,
         workerUrl: WORKER_URL,
+        patientFullName: sessionData.patientFullName,
+        priorInterviews: sessionData.priorInterviews,
         onHardRedFlag: handleHardRedFlag,
       });
       const rtSession = new RealtimeSession(agent, { model: sessionData.model });
