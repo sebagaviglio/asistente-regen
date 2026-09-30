@@ -1,0 +1,141 @@
+/* src/FichaScreen.css */
+
+.ra-ficha {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 20px 60px;
+  gap: 6px;
+}
+
+.ra-ficha__empty {
+  color: var(--stone-dark);
+  font-size: 14px;
+  margin-top: 20px;
+}
+
+.ra-ficha__list {
+  list-style: none;
+  margin: 24px 0 0;
+  padding: 0;
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ra-ficha__item {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.ra-ficha__item:hover {
+  border-color: var(--sage);
+}
+
+.ra-ficha__item-date {
+  font-size: 12px;
+  color: var(--stone-dark);
+}
+
+.ra-ficha__item-status {
+  align-self: flex-start;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 100px;
+  background: var(--cream-soft);
+  color: var(--stone-dark);
+}
+
+.ra-ficha__item-status[data-status='validada'] {
+  background: rgba(120, 143, 118, 0.18);
+  color: var(--moss);
+}
+
+.ra-ficha__item-preview {
+  font-size: 14px;
+  color: var(--black);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ra-ficha-detail {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  text-align: left;
+}
+
+.ra-ficha-detail__back {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  font-size: 13px;
+  color: var(--stone-dark);
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 6px;
+}
+
+.ra-ficha-detail__back:hover {
+  color: var(--black);
+}
+
+.ra-ficha-detail__flags {
+  background: rgba(120, 143, 118, 0.1);
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+
+.ra-ficha-detail__flag {
+  font-size: 13px;
+  color: var(--moss);
+  margin: 0;
+}
+
+.ra-ficha-detail__blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ra-ficha-detail__block h3 {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--stone-dark);
+  margin: 0 0 4px;
+}
+
+.ra-ficha-detail__block p {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--black);
+  margin: 0;
+}
+
+.ra-ficha-detail__block--validation {
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+  margin-top: 4px;
+}
