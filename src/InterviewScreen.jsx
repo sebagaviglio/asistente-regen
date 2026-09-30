@@ -1,7 +1,7 @@
 // src/InterviewScreen.jsx
 import { useCallback, useRef, useState } from 'react';
 import { RealtimeSession } from '@openai/agents-realtime';
-import { VoiceBeam, useMicrophone } from 'voice-glow';
+import { VoiceBeam } from 'voice-glow';
 import { supabase } from './supabaseClient';
 import { buildInterviewAgent } from './interviewAgent';
 import './App.css';
@@ -19,7 +19,6 @@ const CONSENT_TEXT =
   'Para preparar tu primera consulta necesitamos registrar información sobre tu salud (motivo de consulta, antecedentes, hábitos). Es un dato sensible protegido por la Ley 25.326: se usa exclusivamente para tu atención en REGEN, con acceso restringido al equipo profesional, y podés pedir que se elimine cuando quieras.';
 
 export default function InterviewScreen({ session: authSession }) {
-  const mic = useMicrophone();
   const realtimeSessionRef = useRef(null);
   const interviewIdRef = useRef(null);
 
@@ -48,7 +47,6 @@ export default function InterviewScreen({ session: authSession }) {
   const handleHardRedFlag = useCallback(
     (category, endInterview) => {
       realtimeSessionRef.current?.close();
-      mic.stop();
       setRedFlagCategory({ category, endInterview });
       setPhase('redflag');
 
@@ -61,7 +59,7 @@ export default function InterviewScreen({ session: authSession }) {
         authedFetch('/realtime/end', { interviewId: interviewIdRef.current }).catch(() => {});
       }
     },
-    [authedFetch, mic]
+    [authedFetch]
   );
 
   const connectRealtime = useCallback(
@@ -82,10 +80,9 @@ export default function InterviewScreen({ session: authSession }) {
       // SE PRESENTE primero. Disparamos la respuesta inicial a mano.
       rtSession.transport.sendEvent({ type: 'response.create' });
 
-      await mic.start();
       setPhase('live');
     },
-    [accessToken, handleHardRedFlag, mic]
+    [accessToken, handleHardRedFlag]
   );
 
   const startCall = useCallback(async () => {
@@ -155,12 +152,11 @@ export default function InterviewScreen({ session: authSession }) {
   const endCall = useCallback(() => {
     realtimeSessionRef.current?.close();
     realtimeSessionRef.current = null;
-    mic.stop();
     if (interviewIdRef.current) {
       authedFetch('/realtime/end', { interviewId: interviewIdRef.current }).catch(() => {});
     }
     setPhase('ended');
-  }, [authedFetch, mic]);
+  }, [authedFetch]);
 
   const isLive = phase === 'live';
   const isConnecting = phase === 'connecting';
@@ -257,8 +253,7 @@ export default function InterviewScreen({ session: authSession }) {
       {(phase === 'idle' || phase === 'connecting' || phase === 'live' || phase === 'ended') && (
         <div className="ra-dock">
           <VoiceBeam
-            stream={mic.stream}
-            processing={isConnecting}
+            processing={isConnecting || isLive}
             type="default"
             colorVariant="forest"
             theme="light"
