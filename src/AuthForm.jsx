@@ -82,12 +82,6 @@ export default function AuthForm() {
               </svg>
               Continuar con Google
             </button>
-            <button type="button" className="ra-auth__oauth-btn" onClick={() => handleOAuth('facebook')}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="#1877F2" aria-hidden="true">
-                <path d="M24 12.07C24 5.4 18.6 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.09 10.13 24v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.68.24 2.68.24v2.97h-1.51c-1.49 0-1.95.93-1.95 1.89v2.25h3.32l-.53 3.49h-2.79V24C19.61 23.09 24 18.1 24 12.07z" />
-              </svg>
-              Continuar con Facebook
-            </button>
           </div>
         )}
 
