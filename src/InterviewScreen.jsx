@@ -1,5 +1,5 @@
 // src/InterviewScreen.jsx
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { RealtimeSession } from '@openai/agents-realtime';
 import { VoiceBeam } from 'voice-glow';
 import { supabase } from './supabaseClient';
@@ -28,6 +28,8 @@ export default function InterviewScreen({ session: authSession }) {
   const [fullName, setFullName] = useState('');
   const [onboardError, setOnboardError] = useState(null);
   const [onboardLoading, setOnboardLoading] = useState(false);
+  // null = todavía no sabemos; evita mostrar el título equivocado un instante
+  const [hasHistory, setHasHistory] = useState(null);
 
   const accessToken = authSession.access_token;
 
@@ -43,6 +45,13 @@ export default function InterviewScreen({ session: authSession }) {
       }),
     [accessToken]
   );
+
+  useEffect(() => {
+    authedFetch('/patients/me/interviews')
+      .then((res) => res.json())
+      .then((data) => setHasHistory((data.interviews || []).length > 0))
+      .catch(() => setHasHistory(false)); // ante la duda, mostramos el modo "primera vez" (más conservador)
+  }, [authedFetch]);
 
   const handleHardRedFlag = useCallback(
     (category, endInterview) => {
@@ -185,7 +194,9 @@ export default function InterviewScreen({ session: authSession }) {
     <div className="ra-app">
       <header className="ra-topbar">
         <div className="ra-brand">
-          <span className="ra-brand__eyebrow">Asistente de bienestar</span>
+          <span className="ra-brand__eyebrow">
+            {hasHistory ? 'Tu asistente REGEN' : 'Asistente de bienestar'}
+          </span>
           <span className="ra-brand__word">Regen</span>
         </div>
         <div className="ra-topbar__right">
@@ -247,9 +258,13 @@ export default function InterviewScreen({ session: authSession }) {
 
         {(phase === 'idle' || phase === 'connecting' || phase === 'live' || phase === 'ended') && (
           <>
-            <p className="ra-tagline">Entrevista de primera consulta</p>
+            <p className="ra-tagline">
+              {hasHistory ? 'Hablá con tu asistente REGEN' : 'Entrevista de primera consulta'}
+            </p>
             <p className="ra-hint">
-              Tocá el micrófono y contame sobre vos — esto prepara tu primera consulta presencial.
+              {hasHistory
+                ? 'Tocá el micrófono para seguir la conversación — ya conoce tu historial.'
+                : 'Tocá el micrófono y contame sobre vos — esto prepara tu primera consulta presencial.'}
             </p>
           </>
         )}
