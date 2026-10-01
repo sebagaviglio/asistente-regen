@@ -70,7 +70,10 @@ export default function InterviewScreen({ session: authSession }) {
         accessToken,
         workerUrl: WORKER_URL,
         patientFullName: sessionData.patientFullName,
-        priorInterviews: sessionData.priorInterviews,
+        isFirstTime: sessionData.isFirstTime,
+        knownProfile: sessionData.knownProfile,
+        priorInterviewsCount: sessionData.priorInterviewsCount,
+        lastInterviewDate: sessionData.lastInterviewDate,
         onHardRedFlag: handleHardRedFlag,
       });
       const rtSession = new RealtimeSession(agent, { model: sessionData.model });
