@@ -89,6 +89,27 @@ export default function InterviewScreen({ session: authSession }) {
       await rtSession.connect({ apiKey: sessionData.clientSecret });
       realtimeSessionRef.current = rtSession;
 
+      // Mandamos esto como evento crudo al transporte (no como config del
+      // constructor) para no pisar el registro de tools — ver el comentario
+      // sobre el bug conocido del SDK en interviewAgent.js.
+      // - semantic_vad + eagerness 'low': espera más confianza antes de
+      //   decidir que el paciente "habló" — reduce los cortes por ruido
+      //   ambiente o voces de fondo que no son el paciente.
+      // - noise_reduction near_field: filtra ruido antes de llegar al VAD,
+      //   pensado para auriculares/mic cercano (que es como probamos esto).
+      rtSession.transport.sendEvent({
+        type: 'session.update',
+        session: {
+          type: 'realtime',
+          audio: {
+            input: {
+              turn_detection: { type: 'semantic_vad', eagerness: 'low' },
+              noise_reduction: { type: 'near_field' },
+            },
+          },
+        },
+      });
+
       // Sin esto, el modelo espera a que el paciente hable primero (por el
       // turn_detection con VAD) — pero nuestras instrucciones le piden que
       // SE PRESENTE primero. Disparamos la respuesta inicial a mano.
