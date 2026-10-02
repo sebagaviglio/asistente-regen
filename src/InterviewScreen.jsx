@@ -85,30 +85,49 @@ export default function InterviewScreen({ session: authSession }) {
         lastInterviewDate: sessionData.lastInterviewDate,
         onHardRedFlag: handleHardRedFlag,
       });
-      const rtSession = new RealtimeSession(agent, { model: sessionData.model });
-      await rtSession.connect({ apiKey: sessionData.clientSecret });
-      realtimeSessionRef.current = rtSession;
-
-      // Mandamos esto como evento crudo al transporte (no como config del
-      // constructor) para no pisar el registro de tools — ver el comentario
-      // sobre el bug conocido del SDK en interviewAgent.js.
+      // La config de audio va ACÁ, en el constructor — no mandada después
+      // con sendEvent. Con WebRTC, connect() espera la confirmación
+      // (session.updated) de esta config ANTES de dejar fluir audio, así
+      // que no hay ventana donde el audio use la config vieja por defecto.
       // - semantic_vad + eagerness 'low': espera más confianza antes de
-      //   decidir que el paciente "habló" — reduce los cortes por ruido
-      //   ambiente o voces de fondo que no son el paciente.
-      // - noise_reduction near_field: filtra ruido antes de llegar al VAD,
-      //   pensado para auriculares/mic cercano (que es como probamos esto).
-      rtSession.transport.sendEvent({
-        type: 'session.update',
-        session: {
-          type: 'realtime',
+      //   decidir que el paciente "terminó de hablar" — reduce los cortes
+      //   por ruido ambiente o voces de fondo que no son el paciente.
+      // - noiseReduction near_field: filtra ruido antes del VAD, pensado
+      //   para auriculares/mic cercano.
+      const rtSession = new RealtimeSession(agent, {
+        model: sessionData.model,
+        config: {
           audio: {
             input: {
-              turn_detection: { type: 'semantic_vad', eagerness: 'low' },
-              noise_reduction: { type: 'near_field' },
+              turnDetection: { type: 'semantic_vad', eagerness: 'low' },
+              noiseReduction: { type: 'near_field' },
             },
           },
         },
       });
+
+      // Diagnóstico: loguea cada evento crudo de la sesión en la consola
+      // del navegador, para poder VER técnicamente qué pasa en una llamada
+      // (cuántas veces se detecta "empezó a hablar"/"dejó de hablar", y si
+      // el modelo se corta) en vez de solo juzgarlo de oído.
+      rtSession.on('transport_event', (event) => {
+        if (
+          [
+            'session.updated',
+            'input_audio_buffer.speech_started',
+            'input_audio_buffer.speech_stopped',
+            'response.created',
+            'response.done',
+            'response.cancelled',
+            'error',
+          ].includes(event.type)
+        ) {
+          console.log('[REGEN realtime]', event.type, event);
+        }
+      });
+
+      await rtSession.connect({ apiKey: sessionData.clientSecret });
+      realtimeSessionRef.current = rtSession;
 
       // Sin esto, el modelo espera a que el paciente hable primero (por el
       // turn_detection con VAD) — pero nuestras instrucciones le piden que
