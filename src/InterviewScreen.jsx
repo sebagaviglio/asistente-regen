@@ -1,6 +1,6 @@
 // src/InterviewScreen.jsx
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { RealtimeSession } from '@openai/agents-realtime';
+import { RealtimeSession, OpenAIRealtimeWebRTC } from '@openai/agents-realtime';
 import { VoiceBeam } from 'voice-glow';
 import { supabase } from './supabaseClient';
 import { buildInterviewAgent } from './interviewAgent';
@@ -41,6 +41,36 @@ export default function InterviewScreen({ session: authSession }) {
   const realtimeSessionRef = useRef(null);
   const interviewIdRef = useRef(null);
   const historyRef = useRef([]);
+  const micStreamRef = useRef(null);
+  const [micWarning, setMicWarning] = useState(null);
+  const [micDevices, setMicDevices] = useState([]);
+  const [selectedMicId, setSelectedMicId] = useState(
+    () => localStorage.getItem('regen_mic_device_id') || ''
+  );
+
+  const refreshMicDevices = useCallback(async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      setMicDevices(devices.filter((d) => d.kind === 'audioinput'));
+    } catch {
+      setMicDevices([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshMicDevices();
+    // Los labels suelen quedar vacíos hasta que el navegador otorgó permiso
+    // de mic al menos una vez — una vez que eso pasa, 'devicechange' (o un
+    // refresh manual) ya los trae completos.
+    navigator.mediaDevices.addEventListener?.('devicechange', refreshMicDevices);
+    return () => navigator.mediaDevices.removeEventListener?.('devicechange', refreshMicDevices);
+  }, [refreshMicDevices]);
+
+  function handleMicDeviceChange(e) {
+    const id = e.target.value;
+    setSelectedMicId(id);
+    localStorage.setItem('regen_mic_device_id', id);
+  }
 
   // 'idle' | 'need-name' | 'need-consent' | 'connecting' | 'live' | 'redflag' | 'ended'
   const [phase, setPhase] = useState('idle');
@@ -76,6 +106,8 @@ export default function InterviewScreen({ session: authSession }) {
   const handleHardRedFlag = useCallback(
     (category, endInterview) => {
       realtimeSessionRef.current?.close();
+      micStreamRef.current?.getTracks().forEach((t) => t.stop());
+      micStreamRef.current = null;
       setRedFlagCategory({ category, endInterview });
       setPhase('redflag');
 
@@ -109,6 +141,38 @@ export default function InterviewScreen({ session: authSession }) {
         lastInterviewDate: sessionData.lastInterviewDate,
         onHardRedFlag: handleHardRedFlag,
       });
+      // Pedimos el micrófono NOSOTROS (en vez de dejar que el SDK lo pida
+      // con sus valores por defecto), para: (a) activar cancelación de eco
+      // y supresión de ruido explícitas, y (b) poder detectar si el
+      // dispositivo es Bluetooth y avisar — los auriculares Bluetooth
+      // (AirPods incluidos) bajan de calidad al usar el micrófono
+      // simultáneamente con el audio (protocolo HFP), algo que ninguna
+      // configuración de nuestro lado puede evitar, solo avisar.
+      const micStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          deviceId: selectedMicId ? { exact: selectedMicId } : undefined,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+      micStreamRef.current = micStream;
+      refreshMicDevices(); // ahora que hay permiso, trae los labels reales para la próxima vez
+
+      const micLabel = micStream.getAudioTracks()[0]?.label || '';
+      console.log('[REGEN realtime] micLabel:', JSON.stringify(micLabel));
+      if (/airpods|bluetooth|wireless|hands-free|hfp/i.test(micLabel)) {
+        setMicWarning(
+          'Detectamos que estás usando auriculares Bluetooth — por una limitación del Bluetooth (no de esta app), la calidad de audio puede bajar al usar el micrófono. Si podés, usá auriculares con cable o el micrófono del dispositivo.'
+        );
+      } else {
+        setMicWarning(null);
+      }
+
+      const audioElement = document.createElement('audio');
+      audioElement.autoplay = true;
+      const transport = new OpenAIRealtimeWebRTC({ mediaStream: micStream, audioElement });
+
       // La config de audio va ACÁ, en el constructor — no mandada después
       // con sendEvent. Con WebRTC, connect() espera la confirmación
       // (session.updated) de esta config ANTES de dejar fluir audio, así
@@ -119,6 +183,7 @@ export default function InterviewScreen({ session: authSession }) {
       // - noiseReduction near_field: filtra ruido antes del VAD, pensado
       //   para auriculares/mic cercano.
       const rtSession = new RealtimeSession(agent, {
+        transport,
         model: sessionData.model,
         config: {
           audio: {
@@ -175,7 +240,7 @@ export default function InterviewScreen({ session: authSession }) {
 
       setPhase('live');
     },
-    [accessToken, handleHardRedFlag]
+    [accessToken, handleHardRedFlag, selectedMicId, refreshMicDevices]
   );
 
   const startCall = useCallback(async () => {
@@ -201,6 +266,8 @@ export default function InterviewScreen({ session: authSession }) {
       await connectRealtime(data);
     } catch (err) {
       console.error(err);
+      micStreamRef.current?.getTracks().forEach((t) => t.stop());
+      micStreamRef.current = null;
       alert('No pudimos conectar la llamada. Probá de nuevo.');
       setPhase('idle');
     }
@@ -245,6 +312,8 @@ export default function InterviewScreen({ session: authSession }) {
   const endCall = useCallback(() => {
     realtimeSessionRef.current?.close();
     realtimeSessionRef.current = null;
+    micStreamRef.current?.getTracks().forEach((t) => t.stop());
+    micStreamRef.current = null;
     if (interviewIdRef.current) {
       const rawText = buildTranscriptText(historyRef.current);
       authedFetch('/realtime/end', { interviewId: interviewIdRef.current }).catch(() => {});
@@ -349,6 +418,20 @@ export default function InterviewScreen({ session: authSession }) {
                 ? 'Tocá el micrófono para seguir la conversación — ya conoce tu historial.'
                 : 'Tocá el micrófono y contame sobre vos — esto prepara tu primera consulta presencial.'}
             </p>
+            {micWarning && <p className="ra-hint ra-hint--warning">{micWarning}</p>}
+            {phase === 'idle' && micDevices.length > 1 && (
+              <label className="ra-mic-select">
+                <span>Micrófono</span>
+                <select value={selectedMicId} onChange={handleMicDeviceChange}>
+                  <option value="">Por defecto del sistema</option>
+                  {micDevices.map((d) => (
+                    <option key={d.deviceId} value={d.deviceId}>
+                      {d.label || `Micrófono (${d.deviceId.slice(0, 6)}…)`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
           </>
         )}
       </main>
