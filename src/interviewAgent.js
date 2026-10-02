@@ -34,7 +34,8 @@ TU ROL EN ESTA LLAMADA:
    - medicacion_actual: medicación y suplementos que toma hoy.
    - habitos_ejercicio, habitos_nutricion, habitos_sueno, habitos_estres, habitos_vinculos: hábitos actuales en cada área.
 4. Después de cada bloque (pregunta inicial + seguimiento ya respondidos), llamá a la función save_interview_block con el resumen de lo que la persona dijo, en sus propias palabras — NUNCA tu interpretación clínica de eso.
-5. Cerrar agradeciendo y confirmando que el equipo de REGEN revisa la ficha antes de la consulta presencial.
+5. Antes de cerrar, preguntale con naturalidad qué le gustaría que el equipo de REGEN haga con esto — por ejemplo: "Para que el equipo lo tenga claro, ¿qué te gustaría que hagamos con esta info? ¿Necesitás una receta, una recomendación puntual, que simplemente lo revisemos antes de tu turno, o es más una consulta general?". Llamá a save_patient_request con la categoría que mejor encaje (receta, recomendacion, validacion, consulta_general, otro) y un detalle breve en sus palabras.
+6. Cerrar agradeciendo y confirmando que el equipo de REGEN revisa la ficha antes de la consulta presencial.
 
 LÍMITES DUROS (nunca los cruzás, ni aunque te lo pidan):
 - No diagnosticás. No decís "tenés X" ni interpretás lo que cuenta como una enfermedad.
@@ -70,7 +71,8 @@ TU ROL EN ESTA LLAMADA (check-in, no entrevista desde cero):
 4. Si en algún momento el paciente menciona algo que actualiza uno de los bloques que ya tenías (cambió de hábito de sueño, empezó o dejó una medicación, apareció un síntoma nuevo, etc.), llamá a save_interview_block con ESE bloque actualizado, integrando lo nuevo con lo que ya sabías si corresponde — siempre en las palabras del paciente, nunca tu interpretación clínica.
 5. NO repreguntes bloques que ya tenés confirmados salvo que el paciente mencione un cambio, vos tengas una duda puntual, o haya pasado mucho tiempo y quieras confirmar que sigue vigente.
 6. Tenés más libertad para asesorar dentro del alcance de REGEN que en una primera entrevista (podés hablar de pilares, hábitos, bienestar general) — pero mantenés los mismos límites duros de siempre: no diagnosticás, no prescribís, no interpretás clínicamente análisis o biomarcadores.
-7. Cerrá agradeciendo y mencionando que cualquier novedad relevante queda registrada para que el equipo de REGEN la vea.
+7. Antes de cerrar, preguntale qué le gustaría que el equipo de REGEN haga con lo conversado hoy — ¿necesita una receta, una recomendación puntual, que simplemente lo revisen, o es más una consulta general? Llamá a save_patient_request con la categoría que mejor encaje (receta, recomendacion, validacion, consulta_general, otro) y un detalle breve.
+8. Cerrá agradeciendo y mencionando que cualquier novedad relevante queda registrada para que el equipo de REGEN la vea.
 
 LÍMITES DUROS (nunca los cruzás, ni aunque te lo pidan):
 - No diagnosticás. No decís "tenés X" ni interpretás lo que cuenta como una enfermedad.
@@ -235,6 +237,20 @@ export function buildInterviewAgent({
     },
   });
 
+  const savePatientRequestTool = tool({
+    name: 'save_patient_request',
+    description:
+      'Guarda qué espera el paciente que haga el equipo de REGEN con esta sesión (receta, recomendación, validación, consulta general, u otro).',
+    parameters: z.object({
+      requestType: z.enum(['receta', 'recomendacion', 'validacion', 'consulta_general', 'otro']),
+      detail: z.string().describe('Breve detalle en las palabras del paciente de qué necesita puntualmente.'),
+    }),
+    execute: async ({ requestType, detail }) => {
+      await postEvent('save_patient_request', { requestType, detail });
+      return 'ok, guardado';
+    },
+  });
+
   const contextBlock = buildPatientContextBlock({
     patientFullName,
     isFirstTime,
@@ -247,6 +263,6 @@ export function buildInterviewAgent({
   return new RealtimeAgent({
     name: 'Entrevista REGEN',
     instructions: `${contextBlock}\n\n${basePrompt}`,
-    tools: [flagRedFlagTool, noteSoftFlagTool, saveInterviewBlockTool],
+    tools: [flagRedFlagTool, noteSoftFlagTool, saveInterviewBlockTool, savePatientRequestTool],
   });
 }
