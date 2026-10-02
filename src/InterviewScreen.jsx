@@ -18,9 +18,29 @@ const REDFLAG_REPLIES = {
 const CONSENT_TEXT =
   'Para preparar tu primera consulta necesitamos registrar información sobre tu salud (motivo de consulta, antecedentes, hábitos). Es un dato sensible protegido por la Ley 25.326: se usa exclusivamente para tu atención en REGEN, con acceso restringido al equipo profesional, y podés pedir que se elimine cuando quieras.';
 
+function buildTranscriptText(history) {
+  return history
+    .filter((item) => item.type === 'message')
+    .map((item) => {
+      const speaker = item.role === 'assistant' ? 'Asistente' : 'Paciente';
+      const text = (item.content || [])
+        .map((c) => {
+          if (c.type === 'text') return c.text;
+          if (c.type === 'output_audio' || c.type === 'input_audio') return c.transcript || '';
+          return '';
+        })
+        .filter(Boolean)
+        .join(' ');
+      return text ? `${speaker}: ${text}` : null;
+    })
+    .filter(Boolean)
+    .join('\n\n');
+}
+
 export default function InterviewScreen({ session: authSession }) {
   const realtimeSessionRef = useRef(null);
   const interviewIdRef = useRef(null);
+  const historyRef = useRef([]);
 
   // 'idle' | 'need-name' | 'need-consent' | 'connecting' | 'live' | 'redflag' | 'ended'
   const [phase, setPhase] = useState('idle');
@@ -65,7 +85,11 @@ export default function InterviewScreen({ session: authSession }) {
       window.speechSynthesis.speak(utterance);
 
       if (endInterview && interviewIdRef.current) {
+        const rawText = buildTranscriptText(historyRef.current);
         authedFetch('/realtime/end', { interviewId: interviewIdRef.current }).catch(() => {});
+        if (rawText) {
+          authedFetch('/realtime/save-transcript', { interviewId: interviewIdRef.current, rawText }).catch(() => {});
+        }
       }
     },
     [authedFetch]
@@ -135,6 +159,10 @@ export default function InterviewScreen({ session: authSession }) {
         ) {
           console.log('[REGEN realtime]', event.type, event);
         }
+      });
+
+      rtSession.on('history_updated', (history) => {
+        historyRef.current = history;
       });
 
       await rtSession.connect({ apiKey: sessionData.clientSecret });
@@ -218,7 +246,11 @@ export default function InterviewScreen({ session: authSession }) {
     realtimeSessionRef.current?.close();
     realtimeSessionRef.current = null;
     if (interviewIdRef.current) {
+      const rawText = buildTranscriptText(historyRef.current);
       authedFetch('/realtime/end', { interviewId: interviewIdRef.current }).catch(() => {});
+      if (rawText) {
+        authedFetch('/realtime/save-transcript', { interviewId: interviewIdRef.current, rawText }).catch(() => {});
+      }
     }
     setPhase('ended');
   }, [authedFetch]);
