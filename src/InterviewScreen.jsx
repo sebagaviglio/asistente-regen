@@ -111,9 +111,20 @@ export default function InterviewScreen({ session: authSession }) {
       // (cuántas veces se detecta "empezó a hablar"/"dejó de hablar", y si
       // el modelo se corta) en vez de solo juzgarlo de oído.
       rtSession.on('transport_event', (event) => {
+        if (event.type === 'session.updated') {
+          // Expandido a texto completo a propósito: así se puede ver el
+          // valor real de turn_detection.type y confirmar si semantic_vad
+          // quedó aplicado de verdad, sin depender de expandir el objeto
+          // colapsado de la consola.
+          console.log(
+            '[REGEN realtime] session.updated — turn_detection:',
+            JSON.stringify(event.session?.audio?.input?.turn_detection, null, 2),
+            '— noise_reduction:',
+            JSON.stringify(event.session?.audio?.input?.noise_reduction, null, 2)
+          );
+        }
         if (
           [
-            'session.updated',
             'input_audio_buffer.speech_started',
             'input_audio_buffer.speech_stopped',
             'response.created',
