@@ -1,0 +1,50 @@
+/* src/TrendChart.css — mismo archivo en la app del paciente y en el backoffice */
+
+.tc-chart {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.tc-axis {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.tc-tick {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 9.5px;
+  fill: var(--stone-dark);
+}
+
+.tc-band {
+  fill: var(--sage);
+  opacity: 0.16;
+}
+
+.tc-bound {
+  stroke: var(--sage);
+  stroke-width: 1.2;
+  stroke-dasharray: 4 3;
+  opacity: 0.8;
+}
+
+.tc-line {
+  fill: none;
+  stroke: var(--moss);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+
+.tc-dot {
+  stroke: var(--moss);
+  stroke-width: 1.6;
+}
+
+.tc-dot.is-verified {
+  fill: var(--moss);
+}
+
+.tc-dot.is-unverified {
+  fill: #fff;
+}

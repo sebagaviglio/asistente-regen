@@ -98,13 +98,55 @@ TONO: cálido, claro, cercano, de "vos", como con alguien que ya conocés. Frase
  * para anteponer a INTERVIEW_SYSTEM_PROMPT. Esto es dato real de D1, no
  * parte del guion fijo — por eso va separado y se concatena en runtime.
  */
-function buildPatientContextBlock({ patientFullName, isFirstTime, knownProfile, priorInterviewsCount, lastInterviewDate }) {
+const SEX_LABELS = { femenino: 'femenino', masculino: 'masculino', otro: 'otro' };
+
+function buildPatientContextBlock({
+  patientFullName,
+  isFirstTime,
+  knownProfile,
+  priorInterviewsCount,
+  lastInterviewDate,
+  profile,
+  latestReadings,
+}) {
   const firstName = (patientFullName || '').trim().split(/\s+/)[0] || null;
 
   const lines = ['CONTEXTO REAL DE ESTE PACIENTE (dato real, no lo inventes ni lo ignores):'];
 
   if (firstName) {
     lines.push(`- Se llama ${firstName}. Llamalo por su nombre de pila al saludar — NO le preguntes cómo se llama, ya lo sabés.`);
+  }
+
+  // Datos que el paciente cargó en su registro (alineados con Apple Health).
+  const declared = [];
+  if (profile) {
+    const basics = [];
+    if (profile.ageYears != null) basics.push(`edad ${profile.ageYears} años`);
+    if (profile.sex && SEX_LABELS[profile.sex]) basics.push(`sexo ${SEX_LABELS[profile.sex]}`);
+    if (profile.bloodType) basics.push(`grupo sanguíneo ${profile.bloodType}`);
+    if (basics.length) declared.push(`  · ${basics.join(', ')}`);
+    if (profile.allergies) declared.push(`  · Alergias: ${profile.allergies}`);
+    if (profile.medicalConditions) declared.push(`  · Condiciones médicas: ${profile.medicalConditions}`);
+    if (profile.medications) declared.push(`  · Medicación actual: ${profile.medications}`);
+  }
+  if (declared.length) {
+    lines.push(
+      '- Datos que el paciente declaró en su registro (NO se los vuelvas a preguntar desde cero; si hace falta, confirmá si algo cambió):',
+      ...declared
+    );
+  }
+
+  if (profile?.isMinor) {
+    lines.push(
+      '- Es MENOR DE EDAD (población vulnerable): al empezar la llamada registrá note_soft_flag con categoría "vulnerable", hablale con especial cuidado y recordá que cualquier recomendación requiere consulta médica previa con un adulto responsable.'
+    );
+  }
+
+  if (latestReadings?.length) {
+    lines.push(
+      '- Últimas mediciones registradas (son datos: NO los interpretes ni digas si están bien o mal, eso lo evalúa el equipo profesional; podés mencionarlas como referencia):',
+      ...latestReadings.map((r) => `  · ${r.label}: ${r.value} ${r.unit} (${r.measuredAt})`)
+    );
   }
 
   if (isFirstTime) {
@@ -149,6 +191,8 @@ function buildPatientContextBlock({ patientFullName, isFirstTime, knownProfile, 
  * @param {object} [opts.knownProfile] - último valor conocido de cada bloque
  * @param {number} [opts.priorInterviewsCount]
  * @param {string} [opts.lastInterviewDate]
+ * @param {object} [opts.profile] - perfil declarado (edad, sexo, grupo sanguíneo, alergias, condiciones, medicación, isMinor)
+ * @param {Array} [opts.latestReadings] - última medición de cada biomarcador
  * @param {(category: string, endInterview: boolean) => void} opts.onHardRedFlag
  *        Se llama apenas el modelo dispara flag_red_flag, ANTES de que
  *        terminemos de persistir — así la UI corta el audio lo antes posible.
@@ -162,6 +206,8 @@ export function buildInterviewAgent({
   knownProfile,
   priorInterviewsCount,
   lastInterviewDate,
+  profile,
+  latestReadings,
   onHardRedFlag,
 }) {
   async function postEvent(toolName, args) {
@@ -257,6 +303,8 @@ export function buildInterviewAgent({
     knownProfile,
     priorInterviewsCount,
     lastInterviewDate,
+    profile,
+    latestReadings,
   });
   const basePrompt = isFirstTime ? INTERVIEW_SYSTEM_PROMPT : CHECKIN_SYSTEM_PROMPT;
 

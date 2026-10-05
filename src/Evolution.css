@@ -1,0 +1,233 @@
+/* src/Evolution.css — pestañas de "Mi ficha", evolución de biomarcadores y perfil */
+
+.ra-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 18px;
+}
+
+.ra-tab {
+  padding: 8px 16px;
+  border-radius: 100px;
+  border: 1px solid var(--line);
+  background: #fff;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  color: var(--stone-dark);
+  cursor: pointer;
+}
+
+.ra-tab.is-active {
+  background: var(--moss);
+  border-color: var(--moss);
+  color: var(--linen);
+}
+
+.ev-wrap {
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.ev-wrap > .ra-tagline,
+.ev-wrap > .ra-hint {
+  text-align: center;
+  align-self: center;
+}
+
+.ev-disclaimer {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--stone-dark);
+  background: var(--cream-soft);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin: 4px 0 0;
+}
+
+.ev-error {
+  font-size: 13px;
+  color: #a3402f;
+  margin: 0;
+}
+
+.ev-add-btn {
+  align-self: center;
+  padding: 10px 22px;
+  border-radius: 100px;
+  border: 1px solid var(--sage);
+  background: #fff;
+  color: var(--moss);
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 500;
+  font-size: 13.5px;
+  cursor: pointer;
+  margin: 6px 0;
+}
+
+.ev-add-btn:disabled {
+  opacity: 0.5;
+}
+
+.ev-panel {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 18px;
+}
+
+.ev-details summary {
+  font-size: 13px;
+  color: var(--stone-dark);
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+
+.ev-cat {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.ev-cat__title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--stone-dark);
+  margin: 8px 0 0;
+}
+
+.ev-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ev-card__top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ev-card__name {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  margin: 0;
+}
+
+.ev-card__value {
+  font-family: 'Bodoni Moda', serif;
+  font-size: 22px;
+  color: var(--moss);
+  white-space: nowrap;
+}
+
+.ev-card__value span {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  color: var(--stone-dark);
+}
+
+.ev-card__meta,
+.ev-range,
+.ev-legend {
+  font-size: 11.5px;
+  color: var(--stone-dark);
+  margin: 0;
+}
+
+.ev-legend {
+  opacity: 0.85;
+}
+
+.ev-toggle {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 4px 0;
+  font-size: 12.5px;
+  color: var(--moss);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.ev-list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ev-list__item {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13.5px;
+}
+
+.ev-list__sub {
+  font-size: 11.5px;
+  color: var(--stone-dark);
+  margin-top: 2px;
+}
+
+.ev-del {
+  background: none;
+  border: none;
+  color: #a3402f;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+/* ---- Mi perfil ---- */
+
+.ev-profile {
+  width: 100%;
+  max-width: 460px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ev-profile__box {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ev-profile__box h3 {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--stone-dark);
+  margin: 0;
+}
+
+.ev-saved {
+  font-size: 12.5px;
+  color: var(--moss);
+  margin: 0;
+}

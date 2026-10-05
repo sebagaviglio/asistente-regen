@@ -1,0 +1,229 @@
+/* src/Onboarding.css — asistente de registro y formularios de perfil */
+
+.ob-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 28px 16px 60px;
+}
+
+.ob-steps {
+  list-style: none;
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.ob-step {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--stone-dark);
+  opacity: 0.7;
+}
+
+.ob-step.is-current,
+.ob-step.is-done {
+  opacity: 1;
+}
+
+.ob-step.is-current {
+  color: var(--black);
+  font-weight: 500;
+}
+
+.ob-step__dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  background: #fff;
+}
+
+.ob-step.is-current .ob-step__dot {
+  background: var(--moss);
+  border-color: var(--moss);
+  color: var(--linen);
+}
+
+.ob-step.is-done .ob-step__dot {
+  background: rgba(120, 143, 118, 0.2);
+  border-color: var(--sage);
+  color: var(--moss);
+}
+
+.ob-card {
+  width: 100%;
+  max-width: 460px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 28px 24px;
+  box-shadow: 0 30px 70px -40px rgba(25, 25, 23, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ob-title {
+  font-family: 'Cormorant', serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: 28px;
+  color: var(--moss);
+  margin: 0;
+}
+
+.ob-lead {
+  font-size: 14px;
+  color: var(--stone-dark);
+  margin: 0 0 6px;
+}
+
+.ob-consent {
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--black);
+  background: var(--linen);
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin: 0;
+}
+
+.ob-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.ob-check input {
+  margin-top: 3px;
+  accent-color: var(--moss);
+}
+
+/* ---- Formularios de perfil (registro y "Mi perfil") ---- */
+
+.pf-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pf-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 460px) {
+  .pf-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pf-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.pf-field__label {
+  font-size: 12px;
+  color: var(--stone-dark);
+}
+
+.pf-field__hint {
+  font-size: 11.5px;
+  color: var(--stone-dark);
+  opacity: 0.85;
+}
+
+.pf-field__error,
+.pf-error {
+  font-size: 12.5px;
+  color: #a3402f;
+  margin: 0;
+}
+
+.pf-input {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  color: var(--black);
+  padding: 10px 13px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--linen);
+  width: 100%;
+  min-width: 0;
+}
+
+.pf-input:focus {
+  outline: none;
+  border-color: var(--sage);
+  background: #fff;
+}
+
+.pf-input:disabled {
+  opacity: 0.7;
+}
+
+textarea.pf-input {
+  resize: vertical;
+}
+
+.pf-notice {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--moss);
+  background: rgba(120, 143, 118, 0.12);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin: 0;
+}
+
+.pf-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.pf-submit {
+  padding: 12px 22px;
+  border: none;
+  border-radius: 100px;
+  background: var(--moss);
+  color: var(--linen);
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.pf-submit:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.pf-skip {
+  background: none;
+  border: none;
+  color: var(--stone-dark);
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 8px 4px;
+}

@@ -15,9 +15,6 @@ const REDFLAG_REPLIES = {
     'Por lo que describís, esto puede ser una urgencia y no es algo que deba resolverse por chat. Llamá ya al 107 (SAME) o al 911, o pedile a alguien cerca que te acompañe a una guardia. Tu seguridad es lo primero.',
 };
 
-const CONSENT_TEXT =
-  'Para preparar tu primera consulta necesitamos registrar información sobre tu salud (motivo de consulta, antecedentes, hábitos). Es un dato sensible protegido por la Ley 25.326: se usa exclusivamente para tu atención en REGEN, con acceso restringido al equipo profesional, y podés pedir que se elimine cuando quieras.';
-
 function buildTranscriptText(history) {
   return history
     .filter((item) => item.type === 'message')
@@ -37,7 +34,7 @@ function buildTranscriptText(history) {
     .join('\n\n');
 }
 
-export default function InterviewScreen({ session: authSession }) {
+export default function InterviewScreen({ session: authSession, onNeedsOnboarding }) {
   const realtimeSessionRef = useRef(null);
   const interviewIdRef = useRef(null);
   const historyRef = useRef([]);
@@ -72,12 +69,11 @@ export default function InterviewScreen({ session: authSession }) {
     localStorage.setItem('regen_mic_device_id', id);
   }
 
-  // 'idle' | 'need-name' | 'need-consent' | 'connecting' | 'live' | 'redflag' | 'ended'
+  // 'idle' | 'connecting' | 'live' | 'redflag' | 'ended'
+  // (el registro y el consentimiento ya no pasan por acá: los resuelve el
+  // asistente de registro de App.jsx antes de mostrar esta pantalla)
   const [phase, setPhase] = useState('idle');
   const [redFlagCategory, setRedFlagCategory] = useState(null);
-  const [fullName, setFullName] = useState('');
-  const [onboardError, setOnboardError] = useState(null);
-  const [onboardLoading, setOnboardLoading] = useState(false);
   // null = todavía no sabemos; evita mostrar el título equivocado un instante
   const [hasHistory, setHasHistory] = useState(null);
 
@@ -139,6 +135,8 @@ export default function InterviewScreen({ session: authSession }) {
         knownProfile: sessionData.knownProfile,
         priorInterviewsCount: sessionData.priorInterviewsCount,
         lastInterviewDate: sessionData.lastInterviewDate,
+        profile: sessionData.profile,
+        latestReadings: sessionData.latestReadings,
         onHardRedFlag: handleHardRedFlag,
       });
       // Pedimos el micrófono NOSOTROS (en vez de dejar que el SDK lo pida
@@ -162,9 +160,7 @@ export default function InterviewScreen({ session: authSession }) {
       const micLabel = micStream.getAudioTracks()[0]?.label || '';
       console.log('[REGEN realtime] micLabel:', JSON.stringify(micLabel));
       if (/airpods|bluetooth|wireless|hands-free|hfp/i.test(micLabel)) {
-        setMicWarning(
-          'Detectamos que estás usando auriculares Bluetooth — por una limitación del Bluetooth (no de esta app), la calidad de audio puede bajar al usar el micrófono. Si podés, usá auriculares con cable o el micrófono del dispositivo.'
-        );
+        setMicWarning('La conexión por Bluetooth puede bajar un poco la calidad de la llamada.');
       } else {
         setMicWarning(null);
       }
@@ -250,12 +246,12 @@ export default function InterviewScreen({ session: authSession }) {
       const data = await res.json();
 
       if (!res.ok) {
-        if (data.code === 'NO_PATIENT') {
-          setPhase('need-name');
-          return;
-        }
-        if (data.code === 'CONSENT_REQUIRED') {
-          setPhase('need-consent');
+        if (data.code === 'NO_PATIENT' || data.code === 'CONSENT_REQUIRED') {
+          // Falta completar el registro o aceptar la versión vigente del
+          // consentimiento: App.jsx vuelve a consultar el estado y muestra
+          // el asistente de registro en el paso que corresponda.
+          setPhase('idle');
+          onNeedsOnboarding?.();
           return;
         }
         alert(data.error || 'No pudimos iniciar la entrevista.');
@@ -271,43 +267,7 @@ export default function InterviewScreen({ session: authSession }) {
       alert('No pudimos conectar la llamada. Probá de nuevo.');
       setPhase('idle');
     }
-  }, [authedFetch, connectRealtime]);
-
-  const submitName = useCallback(
-    async (e) => {
-      e.preventDefault();
-      setOnboardError(null);
-      setOnboardLoading(true);
-      try {
-        const res = await authedFetch('/patients/register', { fullName });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          setOnboardError(data.error || 'No pudimos guardar tu nombre.');
-          return;
-        }
-        await startCall(); // reintenta — ahora debería pasar a need-consent
-      } finally {
-        setOnboardLoading(false);
-      }
-    },
-    [authedFetch, fullName, startCall]
-  );
-
-  const submitConsent = useCallback(async () => {
-    setOnboardError(null);
-    setOnboardLoading(true);
-    try {
-      const res = await authedFetch('/consent', { granted: true });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setOnboardError(data.error || 'No pudimos guardar tu consentimiento.');
-        return;
-      }
-      await startCall(); // reintenta — ahora debería conectar
-    } finally {
-      setOnboardLoading(false);
-    }
-  }, [authedFetch, startCall]);
+  }, [authedFetch, connectRealtime, onNeedsOnboarding]);
 
   const endCall = useCallback(() => {
     realtimeSessionRef.current?.close();
@@ -362,41 +322,6 @@ export default function InterviewScreen({ session: authSession }) {
       </header>
 
       <main className="ra-stage">
-        {phase === 'need-name' && (
-          <form className="ra-onboard" onSubmit={submitName}>
-            <p className="ra-tagline">Antes de arrancar</p>
-            <p className="ra-hint">¿Cómo te llamás?</p>
-            <input
-              className="ra-onboard__input"
-              type="text"
-              required
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="Nombre y apellido"
-            />
-            {onboardError && <p className="ra-auth__error">{onboardError}</p>}
-            <button type="submit" className="ra-redflag__continue" disabled={onboardLoading}>
-              {onboardLoading ? 'Un momento…' : 'Continuar'}
-            </button>
-          </form>
-        )}
-
-        {phase === 'need-consent' && (
-          <div className="ra-onboard">
-            <p className="ra-tagline">Antes de arrancar</p>
-            <p className="ra-redflag__text">{CONSENT_TEXT}</p>
-            {onboardError && <p className="ra-auth__error">{onboardError}</p>}
-            <button
-              type="button"
-              className="ra-redflag__continue"
-              onClick={submitConsent}
-              disabled={onboardLoading}
-            >
-              {onboardLoading ? 'Un momento…' : 'Acepto, continuar'}
-            </button>
-          </div>
-        )}
-
         {phase === 'redflag' && (
           <div className="ra-redflag">
             <p className="ra-redflag__text">{REDFLAG_REPLIES[redFlagCategory?.category]}</p>

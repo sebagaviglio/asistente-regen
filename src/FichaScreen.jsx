@@ -1,7 +1,11 @@
 // src/FichaScreen.jsx
 import { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
+import InterviewThread from './InterviewThread';
+import BiomarkerEvolution from './BiomarkerEvolution';
+import ProfilePanel from './ProfilePanel';
 import './FichaScreen.css';
+import './Evolution.css';
 
 const WORKER_URL = 'https://regen-agente.sebagaviglio.workers.dev';
 
@@ -30,7 +34,8 @@ function formatDate(iso) {
   });
 }
 
-export default function FichaScreen({ session }) {
+export default function FichaScreen({ session, status, onProfileChanged }) {
+  const [tab, setTab] = useState('entrevistas'); // 'entrevistas' | 'evolucion' | 'perfil'
   const [interviews, setInterviews] = useState(null); // null = cargando
   const [selected, setSelected] = useState(null); // detalle abierto
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -83,8 +88,33 @@ export default function FichaScreen({ session }) {
       </header>
 
       <main className="ra-ficha">
-        {selected ? (
-          <InterviewDetail data={selected} onBack={() => setSelected(null)} />
+        <div className="ra-tabs" role="tablist">
+          {[
+            ['entrevistas', 'Mis entrevistas'],
+            ['evolucion', 'Mi evolución'],
+            ['perfil', 'Mi perfil'],
+          ].map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={tab === key}
+              className={`ra-tab ${tab === key ? 'is-active' : ''}`}
+              onClick={() => {
+                setTab(key);
+                setSelected(null);
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'evolucion' && <BiomarkerEvolution session={session} />}
+        {tab === 'perfil' && <ProfilePanel session={session} status={status} onChanged={onProfileChanged} />}
+
+        {tab === 'entrevistas' && (selected ? (
+          <InterviewDetail data={selected} onBack={() => setSelected(null)} session={session} />
         ) : (
           <>
             <p className="ra-tagline">Mi ficha médica</p>
@@ -111,7 +141,7 @@ export default function FichaScreen({ session }) {
               ))}
             </ul>
           </>
-        )}
+        ))}
 
         {loadingDetail && <p className="ra-ficha__empty">Cargando…</p>}
       </main>
@@ -119,7 +149,7 @@ export default function FichaScreen({ session }) {
   );
 }
 
-function InterviewDetail({ data, onBack }) {
+function InterviewDetail({ data, onBack, session }) {
   const { interview, redFlags } = data;
   if (!interview) return <p className="ra-ficha__empty">No pudimos cargar esta entrevista.</p>;
 
@@ -162,6 +192,8 @@ function InterviewDetail({ data, onBack }) {
           <p>{interview.validation_notes}</p>
         </div>
       )}
+
+      <InterviewThread interviewId={interview.id} accessToken={session.access_token} currentSenderType="patient" />
     </div>
   );
 }
