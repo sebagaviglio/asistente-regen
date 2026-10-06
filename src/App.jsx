@@ -6,6 +6,7 @@ import AuthForm from './AuthForm';
 import OnboardingWizard from './OnboardingWizard';
 import InterviewScreen from './InterviewScreen';
 import FichaScreen from './FichaScreen';
+import BillingGate from './BillingGate';
 
 export default function App() {
   const [session, setSession] = useState(undefined); // undefined = todavía no sabemos
@@ -75,9 +76,16 @@ export default function App() {
 
   // Ruteo simple sin librería: alcanza para dos pantallas.
   const isFicha = window.location.pathname.startsWith('/mi-ficha');
-  return isFicha ? (
-    <FichaScreen session={session} status={status} onProfileChanged={refreshStatus} />
-  ) : (
-    <InterviewScreen session={session} onNeedsOnboarding={refreshStatus} />
+  if (isFicha) {
+    // La ficha nunca se bloquea: quien no pagó sigue viendo sus datos.
+    return <FichaScreen session={session} status={status} onProfileChanged={refreshStatus} />;
+  }
+
+  // Pagos: planes en /planes, vuelta de Mercado Pago y, solo en modo "live", filtro
+  // antes de la entrevista. En los demás modos deja pasar a la entrevista como siempre.
+  return (
+    <BillingGate session={session} status={status}>
+      <InterviewScreen session={session} onNeedsOnboarding={refreshStatus} />
+    </BillingGate>
   );
 }

@@ -1,0 +1,265 @@
+/* src/Billing.css — planes y pago */
+
+.bl-main {
+  flex: 1;
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 28px 16px 70px;
+}
+
+.bl-main .ob-title,
+.bl-main .ob-lead {
+  text-align: center;
+}
+
+.bl-notice {
+  font-size: 13.5px;
+  line-height: 1.55;
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin: 0 auto;
+  max-width: 640px;
+  width: 100%;
+}
+
+.bl-notice--info {
+  background: rgba(120, 143, 118, 0.12);
+  color: var(--moss);
+}
+
+.bl-notice--ok {
+  background: rgba(120, 143, 118, 0.2);
+  color: var(--moss);
+}
+
+.bl-notice--warn {
+  background: #fbefe6;
+  color: #7a3b1d;
+}
+
+.bl-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+
+.bl-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 24px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.bl-card.is-selected {
+  border-color: var(--sage-deep);
+  box-shadow: 0 0 0 1px var(--sage-deep), 0 30px 70px -40px rgba(25, 25, 23, 0.3);
+}
+
+.bl-card--elite {
+  background: var(--moss);
+  color: var(--linen);
+  border-color: var(--moss);
+}
+
+.bl-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.bl-card__title {
+  font-family: 'Cormorant', serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: 26px;
+  margin: 0;
+}
+
+.bl-card--elite .bl-card__title {
+  color: var(--linen);
+}
+
+.bl-badge {
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 100px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+.bl-badge--ok {
+  color: var(--sage-deep);
+}
+
+.bl-price {
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 500;
+  font-size: 28px;
+  margin: 0;
+  color: var(--moss);
+}
+
+.bl-price__note {
+  font-weight: 300;
+  font-size: 13px;
+  color: var(--stone-dark);
+}
+
+.bl-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+  flex: 1;
+}
+
+.bl-list li {
+  padding-left: 20px;
+  position: relative;
+}
+
+.bl-list li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: var(--sage-deep);
+  font-size: 12px;
+  top: 2px;
+}
+
+.bl-card--elite .bl-list li::before {
+  color: var(--glow);
+}
+
+.bl-btn {
+  padding: 11px 18px;
+  border-radius: 100px;
+  border: 1px solid var(--moss);
+  background: transparent;
+  color: var(--moss);
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 500;
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.bl-btn:hover:not(:disabled) {
+  background: rgba(34, 43, 28, 0.08);
+}
+
+.bl-btn--on {
+  background: var(--moss);
+  color: var(--linen);
+}
+
+.bl-btn--ghost {
+  border-color: var(--linen);
+  color: var(--linen);
+}
+
+.bl-btn--ghost:hover:not(:disabled) {
+  background: rgba(244, 239, 229, 0.12);
+}
+
+.bl-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.bl-elite-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bl-card--elite .pf-field__label,
+.bl-card--elite .pf-field__hint,
+.bl-card--elite .pf-skip {
+  color: var(--glow);
+}
+
+.bl-card--elite .pf-submit {
+  background: var(--linen);
+  color: var(--moss);
+}
+
+.bl-card--elite .pf-notice {
+  background: rgba(244, 239, 229, 0.14);
+  color: var(--linen);
+}
+
+.bl-extra {
+  max-width: 420px;
+  width: 100%;
+  margin: 6px auto 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bl-extra__lead {
+  font-size: 13.5px;
+  color: var(--stone-dark);
+  margin: 0;
+  text-align: center;
+}
+
+.bl-pay {
+  max-width: 560px;
+  width: 100%;
+  margin: 10px auto 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.bl-terms {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 16px;
+  font-size: 13.5px;
+}
+
+.bl-terms summary {
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.bl-terms h3 {
+  font-size: 14px;
+  margin: 16px 0 4px;
+  color: var(--moss);
+}
+
+.bl-terms p {
+  margin: 0 0 8px;
+  line-height: 1.55;
+}
+
+.bl-pay .pf-submit {
+  width: 100%;
+}
+
+.bl-fine {
+  font-size: 12px;
+  color: var(--stone-dark);
+  text-align: center;
+  margin: 0;
+}
