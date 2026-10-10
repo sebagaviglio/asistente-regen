@@ -11,7 +11,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from './supabaseClient';
 import { makeApi, ageFromISO } from './api';
-import { fetchPlans, planView, checkoutErrorMessage } from './billing';
+import { fetchPlans, planView, checkoutErrorMessage, validateCoupon, couponView } from './billing';
 import { TERMS_VERSION, TERMS_SECTIONS } from './termsText';
 import './App.css';
 import './Billing.css';
@@ -145,6 +145,12 @@ export default function PlansScreen({ session, status, billing, redirect = (url)
   const [accepted, setAccepted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  // Cupón: se verifica contra el Worker para mostrar el precio; recién se "gasta" al pagar.
+  const [couponOpen, setCouponOpen] = useState(false);
+  const [couponInput, setCouponInput] = useState('');
+  const [coupon, setCoupon] = useState(null); // { code, offer }
+  const [couponBusy, setCouponBusy] = useState(false);
+  const [couponError, setCouponError] = useState(null);
 
   useEffect(() => {
     let alive = true;
@@ -169,25 +175,86 @@ export default function PlansScreen({ session, status, billing, redirect = (url)
   const diagnostico = find('diagnostico');
   const selectedView = selected ? find(selected) : null;
 
+  const selectedKind = selectedView ? selectedView.plan.kind : null;
+
+  async function applyCoupon() {
+    const code = couponInput.trim();
+    if (!code) return;
+    if (!selected) {
+      setCouponError('Elegí primero un plan para aplicar el cupón.');
+      return;
+    }
+    setCouponBusy(true);
+    setCouponError(null);
+    const res = await validateCoupon(session.access_token, selected, code);
+    setCouponBusy(false);
+    if (!res.ok) {
+      setCouponError(res.message);
+      return;
+    }
+    setCoupon({ code, offer: res.offer });
+  }
+
+  function removeCoupon() {
+    setCoupon(null);
+    setCouponInput('');
+    setCouponError(null);
+  }
+
+  // Si la persona cambia de plan, el cupón se vuelve a verificar para el plan nuevo.
+  const couponCode = coupon ? coupon.code : null;
+  useEffect(() => {
+    if (!couponCode || !selected) return undefined;
+    let alive = true;
+    validateCoupon(session.access_token, selected, couponCode).then((res) => {
+      if (!alive) return;
+      if (res.ok) {
+        setCoupon({ code: couponCode, offer: res.offer });
+        setCouponError(null);
+      } else {
+        setCoupon(null);
+        setCouponError(res.message);
+      }
+    });
+    return () => {
+      alive = false;
+    };
+    // Solo al cambiar de plan.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected]);
+
   async function pay() {
     if (!selected || !accepted) return;
     setBusy(true);
     setError(null);
-    const { ok, data } = await api.post('/checkout', { planKey: selected, termsVersion: TERMS_VERSION });
+    const body = { planKey: selected, termsVersion: TERMS_VERSION };
+    if (coupon) body.couponCode = coupon.code;
+    const { ok, data } = await api.post('/checkout', body);
+    if (ok && data?.free) {
+      // Cupón de acceso sin costo: no hay pago. Se vuelve por la pantalla de confirmación.
+      const kind = data.kind === 'order' ? 'diagnostico' : 'suscripcion';
+      redirect(`/?pago=${kind}&ref=${data.orderId || data.subscriptionId}`);
+      return;
+    }
     if (ok && data?.checkoutUrl) {
       redirect(data.checkoutUrl); // se va al sitio de Mercado Pago
       return;
     }
     setBusy(false);
     setError(checkoutErrorMessage(data));
+    if (typeof data?.code === 'string' && data.code.startsWith('COUPON_')) setCoupon(null); // el cupón ya no sirve
   }
+
+  const offerView = coupon && selectedKind ? couponView(coupon.offer, selectedKind) : null;
 
   const blocked = isMinor || paymentsOff || hasOpenSub;
   const payLabel = !selectedView
     ? 'Elegí un plan'
-    : selected === 'diagnostico'
-      ? `Pagar ${selectedView.view.price}`
-      : `Suscribirme por ${selectedView.view.price} al mes`;
+    : offerView
+      ? offerView.payLabel
+      : selected === 'diagnostico'
+        ? `Pagar ${selectedView.view.price}`
+        : `Suscribirme por ${selectedView.view.price} al mes`;
 
   return (
     <div className="ra-app">
@@ -252,6 +319,47 @@ export default function PlansScreen({ session, status, billing, redirect = (url)
                   </div>
                 ))}
               </details>
+              <div className="bl-coupon">
+                {!couponOpen && !coupon && (
+                  <button type="button" className="bl-link" disabled={blocked} onClick={() => setCouponOpen(true)}>
+                    ¿Tenés un cupón?
+                  </button>
+                )}
+                {couponOpen && !coupon && (
+                  <div className="bl-coupon__row">
+                    <input
+                      className="pf-input bl-coupon__input"
+                      aria-label="Código del cupón"
+                      placeholder="REGEN-XXXX-XXXX"
+                      autoCapitalize="characters"
+                      autoComplete="off"
+                      spellCheck={false}
+                      value={couponInput}
+                      disabled={blocked || couponBusy}
+                      onChange={(e) => setCouponInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          applyCoupon();
+                        }
+                      }}
+                    />
+                    <button type="button" className="bl-btn bl-coupon__apply" disabled={blocked || couponBusy || !couponInput.trim()} onClick={applyCoupon}>
+                      {couponBusy ? 'Verificando…' : 'Aplicar'}
+                    </button>
+                  </div>
+                )}
+                {couponError && <p className="pf-error" role="alert">{couponError}</p>}
+                {coupon && offerView && (
+                  <div className="bl-coupon__ok" role="status">
+                    <strong>{offerView.headline}</strong>
+                    <span>{offerView.detail}</span>
+                    <button type="button" className="bl-link" onClick={removeCoupon}>
+                      Quitar cupón
+                    </button>
+                  </div>
+                )}
+              </div>
               <label className="ob-check">
                 <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} disabled={blocked} />
                 <span>Leí y acepto los Términos y Condiciones.</span>
