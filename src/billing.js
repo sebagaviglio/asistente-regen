@@ -24,6 +24,14 @@ export async function fetchBilling(accessToken) {
   return ok && data ? data : null;
 }
 
+// Cupón: cuánto queda el precio de ese plan con ese código. No reserva nada.
+// Devuelve { ok: true, offer } o { ok: false, message, code }.
+export async function validateCoupon(accessToken, planKey, code) {
+  const { ok, data } = await makeApi(accessToken).post('/coupons/validate', { planKey, code });
+  if (ok && data?.valid) return { ok: true, offer: data };
+  return { ok: false, message: data?.error || 'No pudimos verificar el cupón. Probá de nuevo.', code: data?.code || null };
+}
+
 // ── Formatos ─────────────────────────────────────────────────────────────
 export function formatArs(amount) {
   if (typeof amount !== 'number') return '';
@@ -87,6 +95,40 @@ export function planView(plan) {
   return { key: plan.key, title: copy.title, note: copy.note, items, price: plan.showPrice ? formatArs(plan.priceArs) : null };
 }
 
+// ── Cupones ──────────────────────────────────────────────────────────────
+// Texto claro de lo que cambia con el cupón. `kind`: 'one_time' (Diagnóstico) | 'subscription'.
+export function couponView(offer, kind) {
+  if (!offer) return null;
+  const { percentOff, months, listPriceArs, finalPriceArs, free } = offer;
+  const list = formatArs(listPriceArs);
+  const final = formatArs(finalPriceArs);
+
+  if (kind === 'one_time') {
+    return free
+      ? { headline: 'Cupón aplicado: tu Diagnóstico inicial queda sin costo.', detail: 'No hace falta pagar nada.', payLabel: 'Activar sin costo', free: true }
+      : { headline: `Cupón aplicado: ${percentOff}% de descuento.`, detail: `Pagás ${final} en lugar de ${list}.`, payLabel: `Pagar ${final}`, free: false };
+  }
+
+  const n = months || 1;
+  if (free) {
+    return {
+      headline: 'Cupón aplicado: acceso sin costo.',
+      detail: `${n === 1 ? 'Tenés 1 mes' : `Tenés ${n} meses`} de acceso sin costo. No hace falta cargar ningún medio de pago.`,
+      payLabel: 'Activar sin costo',
+      free: true,
+    };
+  }
+  return {
+    headline: `Cupón aplicado: ${percentOff}% de descuento.`,
+    detail:
+      n === 1
+        ? `Pagás ${final} el primer mes y después ${list} por mes.`
+        : `Pagás ${final} por mes durante ${n} meses y después ${list} por mes.`,
+    payLabel: `Suscribirme por ${final} al mes`,
+    free: false,
+  };
+}
+
 // ── Mensajes de error del checkout ───────────────────────────────────────
 const CHECKOUT_ERRORS = {
   MINOR: 'Por ahora la suscripción es solo para mayores de 18 años.',
@@ -126,7 +168,8 @@ export function isPaymentConfirmed(billing, kind, ref) {
   if (!billing) return false;
   if (kind === 'suscripcion') {
     const s = billing.subscription;
-    return !!s && s.status === 'activa' && (!ref || s.id === ref);
+    // 'cortesia' es lo que queda con un cupón de acceso sin costo.
+    return !!s && (s.status === 'activa' || s.status === 'cortesia') && (!ref || s.id === ref);
   }
   if (kind === 'diagnostico') {
     const d = billing.diagnostico;

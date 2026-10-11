@@ -253,3 +253,153 @@ test('filtro: modo "live" con acceso → entrevista', async () => {
 });
 
 test.after(async () => { await vite.close(); setTimeout(() => process.exit(0), 200).unref?.(); });
+
+// ── Cupones ──────────────────────────────────────────────────────────────
+const BILLING_OK = { paymentsEnabled: true, paymentsMode: 'test', subscription: null, diagnostico: null };
+const typeInto = (input, value) =>
+  act(async () => {
+    const setter = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value').set;
+    setter.call(input, value);
+    input.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  });
+const CORE_OFFER = { valid: true, planKey: 'core', percentOff: 20, months: 3, listPriceArs: 59999, finalPriceArs: 47999, free: false };
+
+async function mountPlans(handlers, extra = {}) {
+  const calls = installFetch({ '/plans': { status: 200, body: { plans: PLANS } }, ...handlers });
+  let redirected = null;
+  await mount(React.createElement(PlansScreen, { session, status: adult, redirect: (u) => { redirected = u; }, billing: BILLING_OK, ...extra }));
+  return { calls, redirected: () => redirected };
+}
+async function applyCode(code) {
+  await click(byText('button', '¿Tenés un cupón?'));
+  await typeInto(q('.bl-coupon__input'), code);
+  await click(byText('.bl-coupon button', 'Aplicar'));
+  await tick(5);
+}
+
+test('cupón: sin plan elegido pide elegir uno primero y no consulta nada', async () => {
+  const { calls } = await mountPlans({});
+  await applyCode('REGEN-AAAA-BBBB');
+  assert.match(text(), /Elegí primero un plan/);
+  assert.equal(calls.find((c) => c.path === '/coupons/validate'), undefined);
+});
+
+test('cupón: muestra el precio con descuento y paga con el código', async () => {
+  const { calls, redirected } = await mountPlans({
+    '/coupons/validate': { status: 200, body: CORE_OFFER },
+    '/checkout': { status: 201, body: { kind: 'subscription', checkoutUrl: 'https://mp.test/pre-9', subscriptionId: 's9' } },
+  });
+  await click(byText('.bl-card button', 'Elegir'));
+  await applyCode('regen-aaaa-bbbb');
+
+  assert.deepEqual(calls.find((c) => c.path === '/coupons/validate').body, { planKey: 'core', code: 'regen-aaaa-bbbb' });
+  assert.match(q('.bl-coupon__ok').textContent, /20% de descuento/);
+  assert.match(q('.bl-coupon__ok').textContent, /Pagás \$47\.999 por mes durante 3 meses y después \$59\.999 por mes/);
+  assert.match(q('.bl-pay .pf-submit').textContent, /Suscribirme por \$47\.999 al mes/);
+
+  await click(q('.bl-pay input[type="checkbox"]'));
+  await click(q('.bl-pay .pf-submit'));
+  await tick(5);
+  assert.deepEqual(calls.find((c) => c.path === '/checkout').body, { planKey: 'core', termsVersion: '2026-10-v1-borrador', couponCode: 'regen-aaaa-bbbb' });
+  assert.equal(redirected(), 'https://mp.test/pre-9');
+});
+
+test('cupón inválido: muestra el motivo y se puede probar otro', async () => {
+  await mountPlans({ '/coupons/validate': { status: 409, body: { valid: false, code: 'COUPON_USED', error: 'Este cupón ya fue usado.' } } });
+  await click(byText('.bl-card button', 'Elegir'));
+  await applyCode('REGEN-USAD-OOOO');
+  assert.match(q('.bl-coupon .pf-error').textContent, /ya fue usado/);
+  assert.equal(q('.bl-coupon__ok'), null);
+  assert.ok(q('.bl-coupon__input')); // el campo sigue ahí para probar otro
+  assert.match(q('.bl-pay .pf-submit').textContent, /Suscribirme por \$59\.999 al mes/); // precio completo
+});
+
+test('cupón: se puede quitar y el precio vuelve al completo', async () => {
+  const { calls } = await mountPlans({
+    '/coupons/validate': { status: 200, body: CORE_OFFER },
+    '/checkout': { status: 201, body: { kind: 'subscription', checkoutUrl: 'https://mp.test/x', subscriptionId: 's1' } },
+  });
+  await click(byText('.bl-card button', 'Elegir'));
+  await applyCode('REGEN-AAAA-BBBB');
+  await click(byText('.bl-coupon button', 'Quitar cupón'));
+  assert.equal(q('.bl-coupon__ok'), null);
+  assert.match(q('.bl-pay .pf-submit').textContent, /Suscribirme por \$59\.999 al mes/);
+  await click(q('.bl-pay input[type="checkbox"]'));
+  await click(q('.bl-pay .pf-submit'));
+  await tick(5);
+  assert.equal('couponCode' in calls.find((c) => c.path === '/checkout').body, false);
+});
+
+test('cupón: al cambiar de plan se vuelve a verificar y, si no aplica, se saca con el motivo', async () => {
+  let n = 0;
+  await mountPlans({
+    '/coupons/validate': () => (++n === 1
+      ? { status: 200, body: CORE_OFFER }
+      : { status: 400, body: { valid: false, code: 'COUPON_WRONG_PLAN', error: 'Este cupón no se puede usar en este plan.' } }),
+  });
+  await click(byText('.bl-card button', 'Elegir'));        // Core
+  await applyCode('REGEN-AAAA-BBBB');
+  assert.ok(q('.bl-coupon__ok'));
+  await click(q('.bl-extra .bl-card button'));              // cambia a Diagnóstico
+  await tick(5);
+  assert.equal(q('.bl-coupon__ok'), null);
+  assert.match(q('.bl-coupon .pf-error').textContent, /no se puede usar en este plan/);
+  assert.match(q('.bl-pay .pf-submit').textContent, /Pagar \$299\.999/);
+});
+
+test('cupón en el Diagnóstico: muestra el monto con descuento', async () => {
+  await mountPlans({
+    '/coupons/validate': { status: 200, body: { valid: true, planKey: 'diagnostico', percentOff: 50, months: null, listPriceArs: 299999, finalPriceArs: 150000, free: false } },
+  });
+  await click(q('.bl-extra .bl-card button'));
+  await applyCode('REGEN-AAAA-BBBB');
+  assert.match(q('.bl-coupon__ok').textContent, /Pagás \$150\.000 en lugar de \$299\.999/);
+  assert.match(q('.bl-pay .pf-submit').textContent, /Pagar \$150\.000/);
+});
+
+test('cupón gratis: no se va a Mercado Pago; vuelve por la pantalla de confirmación', async () => {
+  const { calls, redirected } = await mountPlans({
+    '/coupons/validate': { status: 200, body: { valid: true, planKey: 'core', percentOff: 100, months: 2, listPriceArs: 59999, finalPriceArs: 0, free: true } },
+    '/checkout': { status: 201, body: { kind: 'subscription', subscriptionId: 'sFree', free: true, accessMonths: 2 } },
+  });
+  await click(byText('.bl-card button', 'Elegir'));
+  await applyCode('REGEN-FREE-0000');
+  assert.match(q('.bl-coupon__ok').textContent, /acceso sin costo/);
+  assert.match(q('.bl-coupon__ok').textContent, /Tenés 2 meses de acceso sin costo/);
+  assert.match(q('.bl-pay .pf-submit').textContent, /Activar sin costo/);
+
+  await click(q('.bl-pay input[type="checkbox"]'));
+  await click(q('.bl-pay .pf-submit'));
+  await tick(5);
+  assert.equal(calls.find((c) => c.path === '/checkout').body.couponCode, 'REGEN-FREE-0000');
+  assert.equal(redirected(), '/?pago=suscripcion&ref=sFree');
+});
+
+test('cupón: si el checkout lo rechaza (alguien lo usó antes), se saca y se explica', async () => {
+  await mountPlans({
+    '/coupons/validate': { status: 200, body: CORE_OFFER },
+    '/checkout': { status: 409, body: { code: 'COUPON_USED', error: 'Este cupón ya fue usado.' } },
+  });
+  await click(byText('.bl-card button', 'Elegir'));
+  await applyCode('REGEN-AAAA-BBBB');
+  await click(q('.bl-pay input[type="checkbox"]'));
+  await click(q('.bl-pay .pf-submit'));
+  await tick(5);
+  assert.match(q('.bl-pay .pf-error').textContent, /ya fue usado/);
+  assert.equal(q('.bl-coupon__ok'), null);
+  assert.match(q('.bl-pay .pf-submit').textContent, /Suscribirme por \$59\.999 al mes/);
+});
+
+test('cupón: con pagos bloqueados (menor de 18) el campo no se puede usar', async () => {
+  installFetch({ '/plans': { status: 200, body: { plans: PLANS } } });
+  await mount(React.createElement(PlansScreen, { session, status: { profile: { birthDate: '2015-01-01' } }, billing: BILLING_OK }));
+  assert.equal(byText('button', '¿Tenés un cupón?').disabled, true);
+});
+
+test('vuelta de un cupón gratis: una suscripción de cortesía cuenta como confirmada', async () => {
+  goTo('?pago=suscripcion&ref=sFree');
+  installFetch({ '/subscriptions/me': { status: 200, body: { subscription: { id: 'sFree', status: 'cortesia' } } } });
+  await mount(React.createElement(PaymentReturn, { session }));
+  await tick(5);
+  assert.match(text(), /Tu suscripción está activa/);
+});

@@ -263,3 +263,59 @@
   text-align: center;
   margin: 0;
 }
+
+/* Cupón de descuento */
+.bl-coupon {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bl-coupon__row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.bl-coupon__input {
+  flex: 1;
+  min-width: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.bl-coupon__apply {
+  width: auto;
+  padding-left: 18px;
+  padding-right: 18px;
+  flex-shrink: 0;
+}
+
+.bl-coupon__ok {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: rgba(120, 143, 118, 0.14);
+  color: var(--moss);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.bl-link {
+  align-self: flex-start;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--moss);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.bl-link:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

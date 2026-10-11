@@ -2,7 +2,7 @@
 // Correr con:  node --test
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { decideGate, isPaymentConfirmed, formatArs, validationsText, planView, checkoutErrorMessage } from '../src/billing.js';
+import { decideGate, isPaymentConfirmed, formatArs, validationsText, planView, checkoutErrorMessage, couponView } from '../src/billing.js';
 import { TERMS_VERSION, TERMS_SECTIONS } from '../src/termsText.js';
 
 const live = (allowed, extra = {}) => ({
@@ -143,4 +143,37 @@ test('los T&C tienen sus 6 secciones y todos los párrafos numerados', () => {
     assert.ok(s.paragraphs.length > 0);
     for (const p of s.paragraphs) assert.match(p, /^\d+\.\d+\./);
   }
+});
+
+// ── Cupones ──────────────────────────────────────────────────────────────
+test('cupón de suscripción con descuento: dice cuánto y por cuánto tiempo', () => {
+  const offer = { percentOff: 20, months: 3, listPriceArs: 59999, finalPriceArs: 47999, free: false };
+  const v = couponView(offer, 'subscription');
+  assert.equal(v.headline, 'Cupón aplicado: 20% de descuento.');
+  assert.equal(v.detail, 'Pagás $47.999 por mes durante 3 meses y después $59.999 por mes.');
+  assert.equal(v.payLabel, 'Suscribirme por $47.999 al mes');
+  assert.equal(v.free, false);
+  assert.match(couponView({ ...offer, months: 1 }, 'subscription').detail, /el primer mes y después \$59\.999 por mes/);
+});
+
+test('cupón del Diagnóstico: un solo pago, sin meses', () => {
+  const v = couponView({ percentOff: 50, months: null, listPriceArs: 299999, finalPriceArs: 150000, free: false }, 'one_time');
+  assert.equal(v.detail, 'Pagás $150.000 en lugar de $299.999.');
+  assert.equal(v.payLabel, 'Pagar $150.000');
+});
+
+test('cupón gratis: no se paga nada y se explica', () => {
+  const sub = couponView({ percentOff: 100, months: 2, listPriceArs: 59999, finalPriceArs: 0, free: true }, 'subscription');
+  assert.equal(sub.free, true);
+  assert.match(sub.detail, /2 meses de acceso sin costo/);
+  assert.match(sub.detail, /No hace falta cargar ningún medio de pago/);
+  assert.equal(sub.payLabel, 'Activar sin costo');
+  assert.match(couponView({ percentOff: 100, months: 1, listPriceArs: 59999, finalPriceArs: 0, free: true }, 'subscription').detail, /1 mes de acceso/);
+  assert.match(couponView({ percentOff: 100, months: null, listPriceArs: 299999, finalPriceArs: 0, free: true }, 'one_time').headline, /sin costo/);
+  assert.equal(couponView(null, 'subscription'), null);
+});
+
+test('una suscripción de cortesía (cupón gratis) cuenta como confirmada', () => {
+  assert.equal(isPaymentConfirmed({ subscription: { id: 's1', status: 'cortesia' } }, 'suscripcion', 's1'), true);
+  assert.equal(isPaymentConfirmed({ subscription: { id: 's2', status: 'cortesia' } }, 'suscripcion', 's1'), false);
 });
