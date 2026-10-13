@@ -227,3 +227,25 @@ textarea.pf-input {
   cursor: pointer;
   padding: 8px 4px;
 }
+
+/* Grupos del formulario de salud (alergias, medicación) */
+.pf-group {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pf-med {
+  align-items: center;
+}
+
+.pf-med .pf-skip {
+  white-space: nowrap;
+}
+
+.pf-actions {
+  justify-content: flex-end;
+}

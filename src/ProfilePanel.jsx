@@ -63,17 +63,7 @@ export default function ProfilePanel({ session, status, onChanged }) {
         </p>
         <HealthForm
           initial={profile}
-          onSubmit={(v) =>
-            save('health', {
-              step: 'health',
-              bloodType: v.bloodType,
-              allergies: v.allergies,
-              medicalConditions: v.medicalConditions,
-              medications: v.medications,
-              emergencyContactName: v.emergencyContactName,
-              emergencyContactPhone: v.emergencyContactPhone,
-            })
-          }
+          onSubmit={(v) => save('health', { step: 'health', ...v })}
           submitLabel="Guardar salud básica"
           busy={h.busy}
           errors={h.errors}

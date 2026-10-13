@@ -33,6 +33,8 @@ export function PersonalForm({ initial = {}, email, onSubmit, submitLabel = 'Con
     sex: initial.sex || '',
     phone: initial.phone || '',
     dni: initial.dni || '',
+    address: initial.address || '',
+    city: initial.city || '',
   });
   const set = (k) => (e) => setV((p) => ({ ...p, [k]: e.target.value }));
   const age = ageFromISO(v.birthDate);
@@ -87,8 +89,14 @@ export function PersonalForm({ initial = {}, email, onSubmit, submitLabel = 'Con
       <Field label="Teléfono" hint="Con código de área. Ej.: +54 351 555 1234" error={errors.phone}>
         <input className="pf-input" type="tel" value={v.phone} onChange={set('phone')} autoComplete="tel" required />
       </Field>
-      <Field label="DNI (opcional)" error={errors.dni}>
-        <input className="pf-input" inputMode="numeric" value={v.dni} onChange={set('dni')} />
+      <Field label="DNI" hint="Solo números, sin puntos." error={errors.dni}>
+        <input className="pf-input" inputMode="numeric" value={v.dni} onChange={set('dni')} required />
+      </Field>
+      <Field label="Domicilio" hint="Calle y número." error={errors.address}>
+        <input className="pf-input" value={v.address} onChange={set('address')} autoComplete="street-address" required />
+      </Field>
+      <Field label="Localidad" error={errors.city}>
+        <input className="pf-input" value={v.city} onChange={set('city')} autoComplete="address-level2" required />
       </Field>
       {formError && <p className="pf-error">{formError}</p>}
       <button type="submit" className="pf-submit" disabled={busy}>
@@ -98,47 +106,84 @@ export function PersonalForm({ initial = {}, email, onSubmit, submitLabel = 'Con
   );
 }
 
+const emptyMed = () => ({ name: '', dose: '' });
+
 export function HealthForm({
   initial = {},
   showMeasurements = false,
   onSubmit,
-  onSkip,
   submitLabel = 'Guardar',
   busy,
   errors = {},
   formError,
 }) {
+  const initialMeds = Array.isArray(initial.medicationsList) ? initial.medicationsList : [];
   const [v, setV] = useState({
     heightCm: '',
     weightKg: '',
     bloodType: initial.bloodType || '',
     allergies: initial.allergies || '',
+    allergiesNone: !!initial.allergiesNone,
     medicalConditions: initial.medicalConditions || '',
-    medications: initial.medications || '',
+    medicationsNone: !!initial.medicationsNone,
+    medicationsList: initialMeds.length ? initialMeds.map((m) => ({ ...m })) : [emptyMed()],
     emergencyContactName: initial.emergencyContactName || '',
     emergencyContactPhone: initial.emergencyContactPhone || '',
   });
   const set = (k) => (e) => setV((p) => ({ ...p, [k]: e.target.value }));
+  const setMed = (i, k) => (e) =>
+    setV((p) => ({ ...p, medicationsList: p.medicationsList.map((m, j) => (j === i ? { ...m, [k]: e.target.value } : m)) }));
+  const addMed = () => setV((p) => ({ ...p, medicationsList: [...p.medicationsList, emptyMed()] }));
+  const removeMed = (i) =>
+    setV((p) => {
+      const next = p.medicationsList.filter((_, j) => j !== i);
+      return { ...p, medicationsList: next.length ? next : [emptyMed()] };
+    });
+
+  // Validación mínima en el cliente (el servidor vuelve a validar todo).
+  const [localErrors, setLocalErrors] = useState({});
+  function submit(e) {
+    e.preventDefault();
+    const err = {};
+    if (!v.allergiesNone && !v.allergies.trim()) err.allergies = 'Contanos tus alergias, o marcá que no tenés ninguna.';
+    const meds = v.medicationsList.filter((m) => m.name.trim() || m.dose.trim());
+    if (!v.medicationsNone) {
+      if (!meds.length) err.medications = 'Cargá tu medicación (nombre y dosis), o marcá que no tomás ninguna.';
+      else if (meds.some((m) => !m.name.trim() || !m.dose.trim()))
+        err.medications = 'Cada medicación necesita nombre y dosis.';
+    }
+    if (!v.emergencyContactName.trim()) err.emergencyContactName = 'Ingresá un contacto de emergencia.';
+    if (!v.emergencyContactPhone.trim()) err.emergencyContactPhone = 'Ingresá su teléfono.';
+    setLocalErrors(err);
+    if (Object.keys(err).length) return;
+    onSubmit({
+      heightCm: v.heightCm,
+      weightKg: v.weightKg,
+      bloodType: v.bloodType,
+      medicalConditions: v.medicalConditions,
+      allergiesNone: v.allergiesNone,
+      allergies: v.allergiesNone ? '' : v.allergies,
+      medicationsNone: v.medicationsNone,
+      medicationsList: v.medicationsNone ? [] : meds.map((m) => ({ name: m.name.trim(), dose: m.dose.trim() })),
+      emergencyContactName: v.emergencyContactName,
+      emergencyContactPhone: v.emergencyContactPhone,
+    });
+  }
+  const err = { ...localErrors, ...errors };
 
   return (
-    <form
-      className="pf-form"
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSubmit(v);
-      }}
-    >
+    <form className="pf-form" onSubmit={submit}>
       {showMeasurements && (
         <div className="pf-row">
-          <Field label="Altura (cm)" error={errors.heightCm}>
+          <Field label="Altura (cm) · opcional" error={err.heightCm}>
             <input className="pf-input" type="number" inputMode="decimal" step="0.1" min="50" max="250" value={v.heightCm} onChange={set('heightCm')} />
           </Field>
-          <Field label="Peso (kg)" error={errors.weightKg}>
+          <Field label="Peso (kg) · opcional" error={err.weightKg}>
             <input className="pf-input" type="number" inputMode="decimal" step="0.1" min="2" max="400" value={v.weightKg} onChange={set('weightKg')} />
           </Field>
         </div>
       )}
-      <Field label="Grupo sanguíneo" error={errors.bloodType}>
+      <Field label="Grupo sanguíneo · opcional" error={err.bloodType}>
         <select className="pf-input" value={v.bloodType} onChange={set('bloodType')}>
           <option value="">No lo sé</option>
           {BLOOD_TYPES.map((t) => (
@@ -148,30 +193,82 @@ export function HealthForm({
           ))}
         </select>
       </Field>
-      <Field label="Alergias y reacciones" hint="Medicamentos, alimentos, otros.">
-        <textarea className="pf-input" rows={2} value={v.allergies} onChange={set('allergies')} />
-      </Field>
-      <Field label="Condiciones médicas" hint="Diagnósticos o enfermedades que te hayan informado.">
+
+      <fieldset className="pf-group">
+        <legend className="pf-field__label">Alergias y reacciones</legend>
+        <label className="ob-check">
+          <input
+            type="checkbox"
+            checked={v.allergiesNone}
+            onChange={(e) => setV((p) => ({ ...p, allergiesNone: e.target.checked }))}
+          />
+          <span>No tengo alergias conocidas</span>
+        </label>
+        {!v.allergiesNone && (
+          <Field label="" hint="Medicamentos, alimentos, otros." error={err.allergies}>
+            <textarea className="pf-input" rows={2} value={v.allergies} onChange={set('allergies')} aria-label="Alergias y reacciones" />
+          </Field>
+        )}
+      </fieldset>
+
+      <Field label="Condiciones médicas · opcional" hint="Diagnósticos o enfermedades que te hayan informado. Lo vemos con más detalle en la entrevista.">
         <textarea className="pf-input" rows={2} value={v.medicalConditions} onChange={set('medicalConditions')} />
       </Field>
-      <Field label="Medicación actual" hint="Incluí suplementos si los tomás.">
-        <textarea className="pf-input" rows={2} value={v.medications} onChange={set('medications')} />
-      </Field>
+
+      <fieldset className="pf-group">
+        <legend className="pf-field__label">Medicación actual</legend>
+        <label className="ob-check">
+          <input
+            type="checkbox"
+            checked={v.medicationsNone}
+            onChange={(e) => setV((p) => ({ ...p, medicationsNone: e.target.checked }))}
+          />
+          <span>No tomo ninguna medicación</span>
+        </label>
+        {!v.medicationsNone && (
+          <>
+            <p className="pf-field__hint">Escribila tal como figura en la caja. Incluí suplementos si los tomás.</p>
+            {v.medicationsList.map((m, i) => (
+              <div className="pf-row pf-med" key={i}>
+                <input
+                  className="pf-input"
+                  placeholder="Nombre (ej.: Levotiroxina)"
+                  aria-label={`Medicación ${i + 1}: nombre`}
+                  value={m.name}
+                  onChange={setMed(i, 'name')}
+                />
+                <input
+                  className="pf-input"
+                  placeholder="Dosis (ej.: 50 mcg por día)"
+                  aria-label={`Medicación ${i + 1}: dosis`}
+                  value={m.dose}
+                  onChange={setMed(i, 'dose')}
+                />
+                {v.medicationsList.length > 1 && (
+                  <button type="button" className="pf-skip" onClick={() => removeMed(i)} aria-label={`Quitar medicación ${i + 1}`}>
+                    Quitar
+                  </button>
+                )}
+              </div>
+            ))}
+            {err.medications && <span className="pf-field__error">{err.medications}</span>}
+            <button type="button" className="pf-skip" onClick={addMed}>
+              + Agregar otra
+            </button>
+          </>
+        )}
+      </fieldset>
+
       <div className="pf-row">
-        <Field label="Contacto de emergencia" error={errors.emergencyContactName}>
-          <input className="pf-input" value={v.emergencyContactName} onChange={set('emergencyContactName')} />
+        <Field label="Contacto de emergencia" error={err.emergencyContactName}>
+          <input className="pf-input" value={v.emergencyContactName} onChange={set('emergencyContactName')} required />
         </Field>
-        <Field label="Teléfono del contacto" error={errors.emergencyContactPhone}>
-          <input className="pf-input" type="tel" value={v.emergencyContactPhone} onChange={set('emergencyContactPhone')} />
+        <Field label="Teléfono del contacto" error={err.emergencyContactPhone}>
+          <input className="pf-input" type="tel" value={v.emergencyContactPhone} onChange={set('emergencyContactPhone')} required />
         </Field>
       </div>
       {formError && <p className="pf-error">{formError}</p>}
       <div className="pf-actions">
-        {onSkip && (
-          <button type="button" className="pf-skip" onClick={onSkip} disabled={busy}>
-            Omitir por ahora
-          </button>
-        )}
         <button type="submit" className="pf-submit" disabled={busy}>
           {busy ? 'Guardando…' : submitLabel}
         </button>

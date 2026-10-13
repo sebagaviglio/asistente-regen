@@ -10,7 +10,7 @@ import './Evolution.css';
 const WORKER_URL = 'https://regen-agente.sebagaviglio.workers.dev';
 
 const STATUS_LABELS = {
-  borrador: 'En curso',
+  borrador: 'Incompleta · se retoma',
   pendiente_validacion: 'Pendiente de revisión',
   validada: 'Revisada por el equipo',
 };
@@ -119,6 +119,25 @@ export default function FichaScreen({ session, status, onProfileChanged }) {
           <>
             <p className="ra-tagline">Mi ficha médica</p>
             <p className="ra-hint">Tus entrevistas de primera consulta con REGEN.</p>
+
+            {status?.intake && !status.intake.complete && (
+              <div className="ra-ficha__banner" role="status">
+                <p>
+                  <strong>
+                    Te {status.intake.pendingCount === 1 ? 'falta 1 dato' : `faltan ${status.intake.pendingCount} datos`}
+                  </strong>{' '}
+                  para completar tu historia clínica. Tu ficha se envía al equipo cuando esté completa.
+                </p>
+                <ul className="ra-pending">
+                  {[...status.intake.missingWritten, ...status.intake.pending].map((p) => (
+                    <li key={p.key}>{p.label}</li>
+                  ))}
+                </ul>
+                <a className="ra-ficha-link" href="/">
+                  Seguir completándola
+                </a>
+              </div>
+            )}
 
             {interviews === null && <p className="ra-ficha__empty">Cargando…</p>}
             {interviews && interviews.length === 0 && (

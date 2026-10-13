@@ -4,7 +4,8 @@
 // hasta que el paciente lo completa:
 //   1) Datos personales (obligatorios)
 //   2) Consentimiento (texto y versión los sirve el backend)
-//   3) Salud básica (opcional, se puede omitir)
+//   3) Salud básica (obligatoria: alergias, medicación con dosis y contacto de emergencia;
+//      "ninguna" es una respuesta explícita, no se puede omitir)
 import { useState } from 'react';
 import { supabase } from './supabaseClient';
 import { makeApi } from './api';
@@ -115,26 +116,14 @@ export default function OnboardingWizard({ session, status, onChanged }) {
             <>
               <h1 className="ob-title">Tu salud, en breve</h1>
               <p className="ob-lead">
-                Estos datos son opcionales: nos ayudan a conocerte mejor y a empezar tu seguimiento. Podés completarlos
-                ahora o más tarde desde “Mi perfil”.
+                Estos datos los cargás por escrito para evitar errores, y son necesarios para tu ficha médica:
+                alergias, medicación (con dosis) y un contacto de emergencia. Si no tenés alergias o no tomás
+                medicación, marcalo.
               </p>
               <HealthForm
                 initial={status.profile || {}}
                 showMeasurements
-                onSubmit={(v) =>
-                  save({
-                    step: 'health',
-                    heightCm: v.heightCm,
-                    weightKg: v.weightKg,
-                    bloodType: v.bloodType,
-                    allergies: v.allergies,
-                    medicalConditions: v.medicalConditions,
-                    medications: v.medications,
-                    emergencyContactName: v.emergencyContactName,
-                    emergencyContactPhone: v.emergencyContactPhone,
-                  })
-                }
-                onSkip={() => save({ step: 'health', skip: true })}
+                onSubmit={(v) => save({ step: 'health', ...v })}
                 submitLabel="Guardar y empezar"
                 busy={busy}
                 errors={errors}

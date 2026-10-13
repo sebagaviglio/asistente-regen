@@ -76,6 +76,12 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
   const [redFlagCategory, setRedFlagCategory] = useState(null);
   // null = todavía no sabemos; evita mostrar el título equivocado un instante
   const [hasHistory, setHasHistory] = useState(null);
+  // Completitud de la historia clínica: { complete, pendingCount, pending: [{key,label}] }
+  const [intakeSummary, setIntakeSummary] = useState(null);
+  // Cantidad de temas obligatorios pendientes DURANTE la llamada (se actualiza con las tools)
+  const livePendingRef = useRef(null);
+  const [confirmEnd, setConfirmEnd] = useState(false);
+  const [endResult, setEndResult] = useState(null); // { complete, pending: [{label}] }
 
   const accessToken = authSession.access_token;
 
@@ -99,6 +105,38 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
       .catch(() => setHasHistory(false)); // ante la duda, mostramos el modo "primera vez" (más conservador)
   }, [authedFetch]);
 
+  const loadIntakeSummary = useCallback(() => {
+    authedFetch('/patients/me/profile')
+      .then((res) => res.json())
+      .then((data) => setIntakeSummary(data.intake || null))
+      .catch(() => setIntakeSummary(null));
+  }, [authedFetch]);
+
+  useEffect(() => {
+    loadIntakeSummary();
+  }, [loadIntakeSummary]);
+
+  // Cierra la entrevista en el servidor. El servidor decide si la ficha está
+  // completa: si falta algo, queda en borrador y se retoma en la próxima sesión.
+  const finishInterview = useCallback(async () => {
+    const interviewId = interviewIdRef.current;
+    if (!interviewId) return;
+    const rawText = buildTranscriptText(historyRef.current);
+    if (rawText) {
+      authedFetch('/realtime/save-transcript', { interviewId, rawText }).catch(() => {});
+    }
+    try {
+      const res = await authedFetch('/realtime/end', { interviewId });
+      const data = await res.json();
+      if (res.ok) {
+        setEndResult({ complete: data.complete !== false, pending: data.pending || [], reason: data.reason || null });
+      }
+    } catch {
+      /* si falla el cierre, la entrevista queda en borrador y se retoma */
+    }
+    loadIntakeSummary();
+  }, [authedFetch, loadIntakeSummary]);
+
   const handleHardRedFlag = useCallback(
     (category, endInterview) => {
       realtimeSessionRef.current?.close();
@@ -113,19 +151,16 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
       window.speechSynthesis.speak(utterance);
 
       if (endInterview && interviewIdRef.current) {
-        const rawText = buildTranscriptText(historyRef.current);
-        authedFetch('/realtime/end', { interviewId: interviewIdRef.current }).catch(() => {});
-        if (rawText) {
-          authedFetch('/realtime/save-transcript', { interviewId: interviewIdRef.current, rawText }).catch(() => {});
-        }
+        finishInterview();
       }
     },
-    [authedFetch]
+    [finishInterview]
   );
 
   const connectRealtime = useCallback(
     async (sessionData) => {
       interviewIdRef.current = sessionData.interviewId;
+      livePendingRef.current = sessionData.intake?.pending?.length ?? null;
       const agent = buildInterviewAgent({
         interviewId: sessionData.interviewId,
         accessToken,
@@ -137,6 +172,11 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
         lastInterviewDate: sessionData.lastInterviewDate,
         profile: sessionData.profile,
         latestReadings: sessionData.latestReadings,
+        intake: sessionData.intake,
+        resumed: sessionData.resumed,
+        onIntakeUpdate: (data) => {
+          if (Array.isArray(data?.pending)) livePendingRef.current = data.pending.length;
+        },
         onHardRedFlag: handleHardRedFlag,
       });
       // Pedimos el micrófono NOSOTROS (en vez de dejar que el SDK lo pida
@@ -246,9 +286,9 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
       const data = await res.json();
 
       if (!res.ok) {
-        if (data.code === 'NO_PATIENT' || data.code === 'CONSENT_REQUIRED') {
-          // Falta completar el registro o aceptar la versión vigente del
-          // consentimiento: App.jsx vuelve a consultar el estado y muestra
+        if (data.code === 'NO_PATIENT' || data.code === 'CONSENT_REQUIRED' || data.code === 'WRITTEN_DATA_REQUIRED') {
+          // Falta completar el registro (incluidos los datos que se cargan por
+          // escrito) o aceptar la versión vigente del consentimiento: App.jsx vuelve a consultar el estado y muestra
           // el asistente de registro en el paso que corresponda.
           setPhase('idle');
           onNeedsOnboarding?.();
@@ -274,15 +314,10 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
     realtimeSessionRef.current = null;
     micStreamRef.current?.getTracks().forEach((t) => t.stop());
     micStreamRef.current = null;
-    if (interviewIdRef.current) {
-      const rawText = buildTranscriptText(historyRef.current);
-      authedFetch('/realtime/end', { interviewId: interviewIdRef.current }).catch(() => {});
-      if (rawText) {
-        authedFetch('/realtime/save-transcript', { interviewId: interviewIdRef.current, rawText }).catch(() => {});
-      }
-    }
+    setConfirmEnd(false);
+    if (interviewIdRef.current) finishInterview();
     setPhase('ended');
-  }, [authedFetch]);
+  }, [finishInterview]);
 
   const isLive = phase === 'live';
   const isConnecting = phase === 'connecting';
@@ -291,16 +326,26 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
     if (phase === 'idle' || phase === 'ended') {
       interviewIdRef.current = null;
       setRedFlagCategory(null);
+      setEndResult(null);
+      setConfirmEnd(false);
       startCall();
     } else if (isLive) {
-      endCall();
+      // Si todavía faltan temas obligatorios, pedimos confirmación antes de cortar.
+      if (livePendingRef.current > 0 && !confirmEnd) setConfirmEnd(true);
+      else endCall();
     }
   }
 
   let statusText = 'Tocá para empezar a hablar';
   if (isConnecting) statusText = 'Conectando…';
   if (isLive) statusText = 'Escuchándote…';
-  if (phase === 'ended') statusText = 'Entrevista finalizada — tocá para empezar de nuevo';
+  if (phase === 'ended') {
+    statusText =
+      endResult && !endResult.complete
+        ? 'Quedó para retomar — tocá para continuar'
+        : 'Entrevista finalizada';
+  }
+  const incomplete = intakeSummary && !intakeSummary.complete;
 
   return (
     <div className="ra-app">
@@ -336,13 +381,56 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
         {(phase === 'idle' || phase === 'connecting' || phase === 'live' || phase === 'ended') && (
           <>
             <p className="ra-tagline">
-              {hasHistory ? 'Hablá con tu asistente REGEN' : 'Entrevista de primera consulta'}
+              {incomplete && hasHistory
+                ? 'Completemos tu historia clínica'
+                : hasHistory
+                ? 'Hablá con tu asistente REGEN'
+                : 'Entrevista de primera consulta'}
             </p>
             <p className="ra-hint">
-              {hasHistory
+              {incomplete && hasHistory
+                ? `Te faltan ${intakeSummary.pendingCount} ${intakeSummary.pendingCount === 1 ? 'dato' : 'datos'}. Tocá el micrófono para seguir donde lo dejamos.`
+                : hasHistory
                 ? 'Tocá el micrófono para seguir la conversación — ya conoce tu historial.'
                 : 'Tocá el micrófono y contame sobre vos — esto prepara tu primera consulta presencial.'}
             </p>
+            {incomplete && intakeSummary.pending?.length > 0 && phase === 'idle' && (
+              <ul className="ra-pending" aria-label="Temas pendientes">
+                {intakeSummary.pending.map((p) => (
+                  <li key={p.key}>{p.label}</li>
+                ))}
+              </ul>
+            )}
+            {phase === 'live' && confirmEnd && (
+              <div className="ra-confirm" role="alertdialog" aria-label="Terminar la entrevista">
+                <p>
+                  Todavía faltan algunos temas de tu historia clínica. Si cortás ahora, los retomamos la próxima vez que
+                  entres.
+                </p>
+                <div className="ra-confirm__actions">
+                  <button type="button" onClick={() => setConfirmEnd(false)}>
+                    Seguir ahora
+                  </button>
+                  <button type="button" onClick={endCall}>
+                    Terminar y retomar después
+                  </button>
+                </div>
+              </div>
+            )}
+            {phase === 'ended' && endResult && !endResult.complete && endResult.pending?.length > 0 && (
+              <div className="ra-ended">
+                <p className="ra-hint">Quedaron pendientes:</p>
+                <ul className="ra-pending">
+                  {endResult.pending.map((p) => (
+                    <li key={p.key}>{p.label}</li>
+                  ))}
+                </ul>
+                <p className="ra-hint">La próxima vez seguimos desde acá. Tu ficha todavía no se envió al equipo.</p>
+              </div>
+            )}
+            {phase === 'ended' && endResult?.complete && (
+              <p className="ra-hint">Tu historia clínica quedó completa. El equipo de REGEN la va a revisar antes de tu turno.</p>
+            )}
             {micWarning && <p className="ra-hint ra-hint--warning">{micWarning}</p>}
             {phase === 'idle' && micDevices.length > 1 && (
               <label className="ra-mic-select">

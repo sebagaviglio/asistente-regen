@@ -139,3 +139,17 @@
   padding-top: 16px;
   margin-top: 4px;
 }
+
+.ra-ficha__banner {
+  background: rgba(120, 143, 118, 0.12);
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin: 0 0 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.ra-ficha__banner p {
+  margin: 0 0 6px;
+}
