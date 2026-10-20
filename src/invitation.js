@@ -59,7 +59,7 @@ export function clearInvitation() {
 export function inviteErrorMessage(data) {
   switch (data?.code) {
     case 'INVITE_USED': return 'Esta invitación ya fue usada.';
-    case 'INVITE_EXPIRED': return 'Esta invitación venció. Escribile al equipo de REGEN para reactivarla.';
+    case 'INVITE_EXPIRED': return 'Esta invitación venció. Escribí a hola@regen.ar para reactivarla.';
     case 'INVITE_TOO_MANY_ATTEMPTS': return 'Probaste demasiados códigos. Esperá un rato y volvé a intentar.';
     case 'MINOR': return 'Por ahora el servicio es solo para mayores de 18 años.';
     default: return data?.error || 'No pudimos activar tu invitación. Probá de nuevo.';
