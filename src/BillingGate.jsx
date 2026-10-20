@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { fetchBilling, decideGate } from './billing';
 import PlansScreen from './PlansScreen';
 import PaymentReturn from './PaymentReturn';
+import { readInvitation } from './invitation';
 
 export default function BillingGate({ session, status, children }) {
   const [billing, setBilling] = useState(undefined); // undefined = cargando · null = no se pudo consultar
@@ -38,6 +39,9 @@ export default function BillingGate({ session, status, children }) {
     );
   }
   if (screen === 'return') return <PaymentReturn session={session} onBilling={onBilling} />;
-  if (screen === 'plans') return <PlansScreen session={session} status={status} billing={billing} />;
+  if (screen === 'plans') return <PlansScreen session={session} status={status} billing={billing} invitation={readInvitation()} />;
+  // Quien llega con una invitación ve primero sus planes, aunque los pagos todavía no bloqueen a nadie.
+  const invitation = readInvitation();
+  if (invitation && billing) return <PlansScreen session={session} status={status} billing={billing} invitation={invitation} />;
   return children;
 }

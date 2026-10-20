@@ -13,6 +13,7 @@ import { supabase } from './supabaseClient';
 import { makeApi, ageFromISO } from './api';
 import { fetchPlans, planView, checkoutErrorMessage, validateCoupon, couponView } from './billing';
 import { TERMS_VERSION, TERMS_SECTIONS } from './termsText';
+import { clearInvitation, inviteErrorMessage } from './invitation';
 import './App.css';
 import './Billing.css';
 
@@ -138,7 +139,50 @@ function PlanCard({ item, selected, onSelect, blocked, paid }) {
   );
 }
 
-export default function PlansScreen({ session, status, billing, redirect = (url) => window.location.assign(url) }) {
+// Invitación Elite: el código crea un pedido prioritario; el equipo contacta a la persona.
+function EliteInvitation({ invitation, api, disabled, onDone }) {
+  const [phase, setPhase] = useState('idle'); // idle | sending | sent
+  const [error, setError] = useState(null);
+
+  async function redeem() {
+    setPhase('sending');
+    setError(null);
+    const { ok, data } = await api.post('/invitations/redeem-elite', { code: invitation.code });
+    if (!ok) {
+      setPhase('idle');
+      setError(inviteErrorMessage(data));
+      return;
+    }
+    clearInvitation();
+    setPhase('sent');
+  }
+
+  return (
+    <section className="bl-card bl-card--elite" aria-label="Invitación Elite">
+      <header className="bl-card__head">
+        <h2 className="bl-card__title">Tu invitación a REGEN Elite</h2>
+      </header>
+      {phase !== 'sent' ? (
+        <>
+          <p className="ob-lead">Activala y un integrante del equipo de REGEN se pone en contacto con vos con prioridad.</p>
+          {error && <p className="pf-error">{error}</p>}
+          <div className="pf-actions">
+            <button type="button" className="pf-skip" onClick={onDone} disabled={phase === 'sending'}>
+              Ahora no
+            </button>
+            <button type="button" className="pf-submit" onClick={redeem} disabled={disabled || phase === 'sending'}>
+              {phase === 'sending' ? 'Activando…' : 'Activar mi invitación'}
+            </button>
+          </div>
+        </>
+      ) : (
+        <p className="pf-notice">Recibimos tu invitación. Un integrante del equipo de REGEN te va a contactar.</p>
+      )}
+    </section>
+  );
+}
+
+export default function PlansScreen({ session, status, billing, invitation = null, redirect = (url) => window.location.assign(url) }) {
   const api = useMemo(() => makeApi(session.access_token), [session.access_token]);
   const [plans, setPlans] = useState(undefined); // undefined = cargando · null = error
   const [selected, setSelected] = useState(null);
@@ -159,6 +203,27 @@ export default function PlansScreen({ session, status, billing, redirect = (url)
       alive = false;
     };
   }, []);
+
+  // Invitación Core/Activo: deja el plan elegido y el código aplicado.
+  const invPlan = invitation && invitation.plan !== 'elite' ? invitation.plan : null;
+  const invCode = invPlan ? invitation.code : null;
+  useEffect(() => {
+    if (!invPlan || !Array.isArray(plans)) return undefined;
+    let alive = true;
+    setSelected(invPlan);
+    setCouponOpen(true);
+    setCouponInput(invCode);
+    validateCoupon(session.access_token, invPlan, invCode).then((res) => {
+      if (!alive) return;
+      if (res.ok) setCoupon({ code: invCode, offer: res.offer });
+      else setCouponError(res.message);
+    });
+    return () => {
+      alive = false;
+    };
+    // Una sola vez, cuando cargan los planes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plans, invPlan, invCode]);
 
   const age = ageFromISO(status?.profile?.birthDate);
   const isMinor = age !== null && age < 18;
@@ -233,6 +298,7 @@ export default function PlansScreen({ session, status, billing, redirect = (url)
     if (ok && data?.free) {
       // Cupón de acceso sin costo: no hay pago. Se vuelve por la pantalla de confirmación.
       const kind = data.kind === 'order' ? 'diagnostico' : 'suscripcion';
+      clearInvitation();
       redirect(`/?pago=${kind}&ref=${data.orderId || data.subscriptionId}`);
       return;
     }
@@ -284,6 +350,19 @@ export default function PlansScreen({ session, status, billing, redirect = (url)
           </p>
         )}
         {paymentsOff && <p className="bl-notice bl-notice--info">Los pagos todavía no están habilitados.</p>}
+
+        {invitation && invitation.plan === 'elite' && (
+          <EliteInvitation
+            invitation={invitation}
+            api={api}
+            disabled={isMinor}
+            onDone={() => {
+              clearInvitation();
+              window.location.assign('/');
+            }}
+          />
+        )}
+        {invPlan && <p className="bl-notice bl-notice--ok">Tenés una invitación a REGEN {invPlan === 'core' ? 'Core' : 'Activo'}. Revisá el plan y confirmá para activarla.</p>}
 
         {plans === undefined && <p className="ra-hint">Cargando planes…</p>}
         {plans === null && <p className="pf-error">No pudimos cargar los planes. Probá de nuevo en unos minutos.</p>}
