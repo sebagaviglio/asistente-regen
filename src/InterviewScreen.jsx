@@ -180,6 +180,7 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
         latestReadings: sessionData.latestReadings,
         intake: sessionData.intake,
         resumed: sessionData.resumed,
+        prompts: sessionData.prompts,
         onIntakeUpdate: (data) => {
           if (Array.isArray(data?.pending)) livePendingRef.current = data.pending.length;
         },

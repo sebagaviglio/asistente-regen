@@ -301,6 +301,7 @@ export function buildInterviewAgent({
   latestReadings,
   intake,
   resumed,
+  prompts,
   onIntakeUpdate,
   onHardRedFlag,
 }) {
@@ -454,11 +455,15 @@ export function buildInterviewAgent({
     intake,
     resumed,
   });
-  const basePrompt = isFirstTime ? INTERVIEW_SYSTEM_PROMPT : CHECKIN_SYSTEM_PROMPT;
+  // Fuente única: los prompts vienen del Worker; si no llegan, se usa la copia local.
+  const basePrompt = isFirstTime
+    ? prompts?.interview || INTERVIEW_SYSTEM_PROMPT
+    : prompts?.checkin || CHECKIN_SYSTEM_PROMPT;
+  const attachmentRules = prompts?.attachmentRules || ATTACHMENT_RULES;
 
   return new RealtimeAgent({
     name: 'Entrevista REGEN',
-    instructions: `${contextBlock}\n\n${basePrompt}\n\n${ATTACHMENT_RULES}`,
+    instructions: `${contextBlock}\n\n${basePrompt}\n\n${attachmentRules}`,
     tools: [
       flagRedFlagTool,
       noteSoftFlagTool,
