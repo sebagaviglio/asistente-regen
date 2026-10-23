@@ -169,7 +169,7 @@ export default function FichaScreen({ session, status, onProfileChanged }) {
 }
 
 function InterviewDetail({ data, onBack, session }) {
-  const { interview, redFlags } = data;
+  const { interview, redFlags, files } = data;
   if (!interview) return <p className="ra-ficha__empty">No pudimos cargar esta entrevista.</p>;
 
   return (
@@ -205,6 +205,8 @@ function InterviewDetail({ data, onBack, session }) {
         )}
       </div>
 
+      {files?.length > 0 && <FilesList files={files} accessToken={session.access_token} />}
+
       {interview.validation_notes && (
         <div className="ra-ficha-detail__block ra-ficha-detail__block--validation">
           <h3>Notas del equipo REGEN</h3>
@@ -213,6 +215,49 @@ function InterviewDetail({ data, onBack, session }) {
       )}
 
       <InterviewThread interviewId={interview.id} accessToken={session.access_token} currentSenderType="patient" />
+    </div>
+  );
+}
+
+const KIND_LABELS = { imagen: 'Imagen', documento: 'Documento' };
+
+// Los archivos que el paciente mostró durante la llamada. Se abren con su sesión
+// (el Worker verifica que sean suyos), no con un link público.
+function FilesList({ files, accessToken }) {
+  const [error, setError] = useState(null);
+
+  async function open(file) {
+    setError(null);
+    try {
+      const res = await fetch(`${WORKER_URL}/interview/file?key=${encodeURIComponent(file.r2Key)}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!res.ok) throw new Error('no se pudo abrir');
+      const blob = await res.blob();
+      window.open(URL.createObjectURL(blob), '_blank');
+    } catch {
+      setError('No pudimos abrir el archivo. Probá de nuevo.');
+    }
+  }
+
+  return (
+    <div className="ra-ficha-detail__block ra-ficha-files">
+      <h3>Archivos que mostraste</h3>
+      <ul className="ra-ficha-files__list">
+        {files.map((f) => (
+          <li key={f.id}>
+            <div>
+              <strong>{f.fileName}</strong>{' '}
+              <span className="ra-ficha-files__kind">{KIND_LABELS[f.kind] || f.kind}</span>
+              {f.analyzed && f.description ? <p>{f.description}</p> : <p>Lo va a revisar el equipo.</p>}
+            </div>
+            <button type="button" onClick={() => open(f)}>
+              Ver
+            </button>
+          </li>
+        ))}
+      </ul>
+      {error && <p className="pf-error">{error}</p>}
     </div>
   );
 }

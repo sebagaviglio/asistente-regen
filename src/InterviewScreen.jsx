@@ -4,6 +4,7 @@ import { RealtimeSession, OpenAIRealtimeWebRTC } from '@openai/agents-realtime';
 import { VoiceBeam } from 'voice-glow';
 import { supabase } from './supabaseClient';
 import { buildInterviewAgent } from './interviewAgent';
+import { ACCEPT_ANY, uploadAttachment, buildAttachmentMessage } from './attachments';
 import './App.css';
 
 const WORKER_URL = 'https://regen-agente.sebagaviglio.workers.dev';
@@ -82,6 +83,11 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
   const livePendingRef = useRef(null);
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [endResult, setEndResult] = useState(null); // { complete, pending: [{label}] }
+  // Archivos que el paciente muestra durante la llamada
+  const cameraInputRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const [attachBusy, setAttachBusy] = useState(false);
+  const [attachMsg, setAttachMsg] = useState(null); // { type: 'ok' | 'error', text }
 
   const accessToken = authSession.access_token;
 
@@ -309,6 +315,41 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
     }
   }, [authedFetch, connectRealtime, onNeedsOnboarding]);
 
+  // Sube el archivo al Worker y, cuando está listo, se lo cuenta al asistente en vivo.
+  const handleAttachFiles = useCallback(
+    async (e) => {
+      const files = Array.from(e.target.files || []);
+      e.target.value = ''; // permite elegir el mismo archivo otra vez
+      if (!files.length || !interviewIdRef.current) return;
+      setAttachBusy(true);
+      setAttachMsg(null);
+      let sent = 0;
+      for (const file of files) {
+        const result = await uploadAttachment({
+          workerUrl: WORKER_URL,
+          accessToken,
+          interviewId: interviewIdRef.current,
+          file,
+        });
+        if (!result.ok) {
+          setAttachMsg({ type: 'error', text: result.error });
+          continue;
+        }
+        sent += 1;
+        // Un mensaje de usuario con la descripción: el asistente lo comenta en voz.
+        realtimeSessionRef.current?.sendMessage(buildAttachmentMessage(result.data));
+      }
+      setAttachBusy(false);
+      if (sent) {
+        setAttachMsg({
+          type: 'ok',
+          text: sent === 1 ? 'Archivo enviado. Tu asistente lo está mirando.' : `${sent} archivos enviados.`,
+        });
+      }
+    },
+    [accessToken]
+  );
+
   const endCall = useCallback(() => {
     realtimeSessionRef.current?.close();
     realtimeSessionRef.current = null;
@@ -400,6 +441,44 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
                   <li key={p.key}>{p.label}</li>
                 ))}
               </ul>
+            )}
+            {phase === 'live' && (
+              <div className="ra-attach">
+                <p className="ra-hint">¿Querés mostrar algo? Una foto de la piel o el cuerpo, un estudio, un producto.</p>
+                <div className="ra-attach__actions">
+                  <button type="button" disabled={attachBusy} onClick={() => cameraInputRef.current?.click()}>
+                    Sacar foto
+                  </button>
+                  <button type="button" disabled={attachBusy} onClick={() => fileInputRef.current?.click()}>
+                    Adjuntar
+                  </button>
+                </div>
+                <p className="ra-attach__privacy">Solo las ve el equipo de REGEN.</p>
+                {attachBusy && <p className="ra-hint" role="status">Subiendo…</p>}
+                {attachMsg && (
+                  <p className={`ra-hint ${attachMsg.type === 'error' ? 'ra-hint--warning' : ''}`} role="status">
+                    {attachMsg.text}
+                  </p>
+                )}
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  hidden
+                  aria-label="Sacar foto"
+                  onChange={handleAttachFiles}
+                />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={ACCEPT_ANY}
+                  multiple
+                  hidden
+                  aria-label="Adjuntar archivo"
+                  onChange={handleAttachFiles}
+                />
+              </div>
             )}
             {phase === 'live' && confirmEnd && (
               <div className="ra-confirm" role="alertdialog" aria-label="Terminar la entrevista">

@@ -310,3 +310,40 @@
 .ra-ended {
   text-align: center;
 }
+
+/* Archivos durante la llamada */
+.ra-attach {
+  margin: 14px auto 0;
+  max-width: 420px;
+  text-align: center;
+}
+
+.ra-attach__actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.ra-attach__actions button {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13.5px;
+  padding: 9px 18px;
+  border-radius: 100px;
+  border: 1px solid var(--line);
+  background: var(--linen);
+  color: var(--black);
+  cursor: pointer;
+}
+
+.ra-attach__actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.ra-attach__privacy {
+  font-size: 12px;
+  color: var(--stone-dark);
+  margin: 8px 0 0;
+}
