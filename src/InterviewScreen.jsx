@@ -1,11 +1,15 @@
 // src/InterviewScreen.jsx
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RealtimeSession, OpenAIRealtimeWebRTC } from '@openai/agents-realtime';
-import { VoiceBeam } from 'voice-glow';
 import { supabase } from './supabaseClient';
 import { buildInterviewAgent } from './interviewAgent';
 import { ACCEPT_ANY, uploadAttachment, buildAttachmentMessage } from './attachments';
+import VoiceOrb from './VoiceOrb';
+import CaptionBubbles from './CaptionBubbles';
+import { createAudioLevels, combineLevels } from './audioLevel';
+import { latestCaptions, sameCaptions } from './captions';
 import './App.css';
+import './Interview.css';
 
 const WORKER_URL = 'https://regen-agente.sebagaviglio.workers.dev';
 
@@ -35,11 +39,15 @@ function buildTranscriptText(history) {
     .join('\n\n');
 }
 
-export default function InterviewScreen({ session: authSession, onNeedsOnboarding }) {
+export default function InterviewScreen({ session: authSession, onNeedsOnboarding, planName }) {
   const realtimeSessionRef = useRef(null);
   const interviewIdRef = useRef(null);
   const historyRef = useRef([]);
   const micStreamRef = useRef(null);
+  // Volumen real de la llamada (asistente y micrófono) para animar la esfera.
+  const levelsRef = useRef(null);
+  // Últimas intervenciones, para los subtítulos en burbujas.
+  const [captions, setCaptions] = useState([]);
   const [micWarning, setMicWarning] = useState(null);
   const [micDevices, setMicDevices] = useState([]);
   const [selectedMicId, setSelectedMicId] = useState(
@@ -90,6 +98,18 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
   const [attachMsg, setAttachMsg] = useState(null); // { type: 'ok' | 'error', text }
 
   const accessToken = authSession.access_token;
+
+  const closeLevels = useCallback(() => {
+    levelsRef.current?.close();
+    levelsRef.current = null;
+  }, []);
+  useEffect(() => closeLevels, [closeLevels]); // al salir de la pantalla, soltamos el contexto de audio
+
+  // Nivel 0..1 que lee la esfera en cada cuadro. Sin Web Audio, un movimiento suave de respaldo.
+  const readLevel = useCallback(() => {
+    const levels = levelsRef.current;
+    return levels ? combineLevels(levels.read()) : 0.14;
+  }, []);
 
   const authedFetch = useCallback(
     (path, body) =>
@@ -148,6 +168,7 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
       realtimeSessionRef.current?.close();
       micStreamRef.current?.getTracks().forEach((t) => t.stop());
       micStreamRef.current = null;
+      closeLevels();
       setRedFlagCategory({ category, endInterview });
       setPhase('redflag');
 
@@ -160,7 +181,7 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
         finishInterview();
       }
     },
-    [finishInterview]
+    [finishInterview, closeLevels]
   );
 
   const connectRealtime = useCallback(
@@ -202,6 +223,7 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
         },
       });
       micStreamRef.current = micStream;
+      levelsRef.current?.attachMic(micStream);
       refreshMicDevices(); // ahora que hay permiso, trae los labels reales para la próxima vez
 
       const micLabel = micStream.getAudioTracks()[0]?.label || '';
@@ -214,6 +236,7 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
 
       const audioElement = document.createElement('audio');
       audioElement.autoplay = true;
+      levelsRef.current?.watchRemoteElement(audioElement);
       const transport = new OpenAIRealtimeWebRTC({ mediaStream: micStream, audioElement });
 
       // La config de audio va ACÁ, en el constructor — no mandada después
@@ -271,6 +294,8 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
 
       rtSession.on('history_updated', (history) => {
         historyRef.current = history;
+        const next = latestCaptions(history);
+        setCaptions((prev) => (sameCaptions(prev, next) ? prev : next));
       });
 
       await rtSession.connect({ apiKey: sessionData.clientSecret });
@@ -288,6 +313,9 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
 
   const startCall = useCallback(async () => {
     setPhase('connecting');
+    // El contexto de audio se crea acá, dentro del toque del paciente (los navegadores móviles lo exigen).
+    closeLevels();
+    levelsRef.current = createAudioLevels();
     try {
       const res = await authedFetch('/realtime/session');
       const data = await res.json();
@@ -311,10 +339,11 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
       console.error(err);
       micStreamRef.current?.getTracks().forEach((t) => t.stop());
       micStreamRef.current = null;
+      closeLevels();
       alert('No pudimos conectar la llamada. Probá de nuevo.');
       setPhase('idle');
     }
-  }, [authedFetch, connectRealtime, onNeedsOnboarding]);
+  }, [authedFetch, connectRealtime, onNeedsOnboarding, closeLevels]);
 
   // Sube el archivo al Worker y, cuando está listo, se lo cuenta al asistente en vivo.
   const handleAttachFiles = useCallback(
@@ -356,10 +385,11 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
     realtimeSessionRef.current = null;
     micStreamRef.current?.getTracks().forEach((t) => t.stop());
     micStreamRef.current = null;
+    closeLevels();
     setConfirmEnd(false);
     if (interviewIdRef.current) finishInterview();
     setPhase('ended');
-  }, [finishInterview]);
+  }, [finishInterview, closeLevels]);
 
   const isLive = phase === 'live';
   const isConnecting = phase === 'connecting';
@@ -370,6 +400,7 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
       setRedFlagCategory(null);
       setEndResult(null);
       setConfirmEnd(false);
+      setCaptions([]);
       startCall();
     } else if (isLive) {
       // Si todavía faltan temas obligatorios, pedimos confirmación antes de cortar.
@@ -399,6 +430,11 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
           <span className="ra-brand__word">Regen</span>
         </div>
         <div className="ra-topbar__right">
+          {planName && (
+            <span className="ra-plan-chip" title="Tu plan activo">
+              Plan {planName}
+            </span>
+          )}
           <a className="ra-ficha-link" href="/mi-ficha">
             Mi ficha médica
           </a>
@@ -408,7 +444,7 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
         </div>
       </header>
 
-      <main className="ra-stage">
+      <main className={`ra-stage ${phase === 'redflag' ? '' : 'ra-stage--call'}`}>
         {phase === 'redflag' && (
           <div className="ra-redflag">
             <p className="ra-redflag__text">{REDFLAG_REPLIES[redFlagCategory?.category]}</p>
@@ -443,6 +479,8 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
                 ))}
               </ul>
             )}
+            <VoiceOrb readLevel={readLevel} active={isLive} />
+            <CaptionBubbles items={captions} reserve={isLive} />
             {phase === 'live' && (
               <div className="ra-attach">
                 <p className="ra-hint">¿Querés mostrar algo? Una foto de la piel o el cuerpo, un estudio, un producto.</p>
@@ -530,29 +568,24 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
       </main>
 
       {(phase === 'idle' || phase === 'connecting' || phase === 'live' || phase === 'ended') && (
-        <div className="ra-dock">
-          <VoiceBeam
-            processing={isConnecting || isLive}
-            type="default"
-            colorVariant="forest"
-            theme="light"
-          >
-            <div className={`ra-voicebar ${isLive ? 'is-live' : ''}`}>
-              <span className="ra-voicebar__status">{statusText}</span>
-              <button
-                type="button"
-                className="ra-voicebar__mic"
-                onClick={handleMicTap}
-                disabled={isConnecting}
-                aria-label={isLive ? 'Terminar' : 'Empezar a hablar'}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-                  <rect x="9" y="3" width="6" height="11" rx="3" />
-                  <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
-                </svg>
-              </button>
-            </div>
-          </VoiceBeam>
+        <div className="ra-dock ra-dock--call">
+          <div className={`ra-voicebar ${isLive ? 'is-live' : ''}`}>
+            <span className="ra-voicebar__status" role="status">
+              {statusText}
+            </span>
+            <button
+              type="button"
+              className="ra-voicebar__mic"
+              onClick={handleMicTap}
+              disabled={isConnecting}
+              aria-label={isLive ? 'Terminar' : 'Empezar a hablar'}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+                <rect x="9" y="3" width="6" height="11" rx="3" />
+                <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+              </svg>
+            </button>
+          </div>
         </div>
       )}
     </div>
