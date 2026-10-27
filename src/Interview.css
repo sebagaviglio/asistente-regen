@@ -1,0 +1,128 @@
+/* src/Interview.css — pantalla de la entrevista de voz (esfera, subtítulos, chip de plan) */
+
+/* Encabezado: con el chip del plan puede no entrar todo en un celular angosto. */
+.ra-topbar {
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.ra-plan-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  background: #dde5d6;
+  color: #3d4d38;
+}
+
+/* Celular: el chip del plan queda a la derecha de la marca (como en la demo) y
+   «Mi ficha médica» / «Salir» bajan a la segunda fila solo si no entran. */
+@media (max-width: 480px) {
+  .ra-topbar__right {
+    display: contents;
+  }
+  .ra-plan-chip {
+    order: 1;
+    margin-left: auto;
+  }
+  .ra-ficha-link {
+    order: 2;
+    padding: 7px 12px;
+  }
+  .ra-logout {
+    order: 3;
+  }
+}
+
+/* Durante la llamada el contenido va de arriba hacia abajo (no centrado), y la barra
+   del micrófono queda siempre a mano al pie de la pantalla. */
+.ra-stage--call {
+  justify-content: flex-start;
+  gap: 8px;
+  padding-top: 18px;
+}
+
+.ra-dock--call {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+}
+
+/* Esfera de voz */
+.ra-orb {
+  display: block;
+  width: min(100%, 420px);
+  aspect-ratio: 4 / 3;
+  margin: 2px auto;
+  flex: none;
+}
+
+/* Subtítulos en burbujas */
+.ra-subs {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 100%;
+  max-width: 380px;
+  text-align: left;
+}
+
+.ra-subs--reserve {
+  min-height: 132px;
+}
+
+.ra-sub {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.42;
+  padding: 10px 13px;
+  border-radius: 14px;
+  max-width: 88%;
+  animation: ra-sub-in 0.4s var(--ease) both;
+}
+
+.ra-sub small {
+  display: block;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+  opacity: 0.65;
+}
+
+.ra-sub--a {
+  align-self: flex-start;
+  background: var(--paper, #faf7f0);
+  border: 1px solid var(--line);
+  color: var(--black);
+}
+
+.ra-sub--p {
+  align-self: flex-end;
+  background: var(--sage-deep);
+  color: var(--linen);
+}
+
+@keyframes ra-sub-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ra-sub {
+    animation: none;
+  }
+}

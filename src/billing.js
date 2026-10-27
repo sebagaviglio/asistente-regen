@@ -143,6 +143,14 @@ export function checkoutErrorMessage(data) {
   return CHECKOUT_ERRORS[data?.code] || data?.error || 'No pudimos abrir el pago. Probá de nuevo en unos minutos.';
 }
 
+// Nombre del plan para mostrar en el chip de la entrevista (p. ej. "Activo").
+// Solo si la suscripción está vigente; sin plan o en mora/cancelada, null (no se muestra nada).
+export function activePlanName(billing) {
+  const s = billing?.subscription;
+  if (!s || !s.planName) return null;
+  return s.status === 'activa' || s.status === 'cortesia' ? String(s.planName) : null;
+}
+
 // ── Qué pantalla se muestra ──────────────────────────────────────────────
 // Reglas (decididas con Seba):
 //  - Al volver de Mercado Pago (?pago=...) se muestra la pantalla de confirmación.

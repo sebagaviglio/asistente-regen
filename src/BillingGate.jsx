@@ -3,8 +3,8 @@
 // Envuelve la pantalla de la entrevista y decide qué mostrar según el estado de pagos
 // (ver decideGate en billing.js). Con el Worker en modo "off" o "test" no cambia nada
 // para nadie; solo en modo "live" manda a elegir plan a quien no tiene acceso.
-import { useCallback, useEffect, useState } from 'react';
-import { fetchBilling, decideGate } from './billing';
+import { cloneElement, isValidElement, useCallback, useEffect, useState } from 'react';
+import { fetchBilling, decideGate, activePlanName } from './billing';
 import PlansScreen from './PlansScreen';
 import PaymentReturn from './PaymentReturn';
 import { readInvitation } from './invitation';
@@ -43,5 +43,7 @@ export default function BillingGate({ session, status, children }) {
   // Quien llega con una invitación ve primero sus planes, aunque los pagos todavía no bloqueen a nadie.
   const invitation = readInvitation();
   if (invitation && billing) return <PlansScreen session={session} status={status} billing={billing} invitation={invitation} />;
-  return children;
+  // La entrevista muestra el plan activo en un chip: se lo pasamos sin tocar nada más.
+  const planName = activePlanName(billing);
+  return planName && isValidElement(children) ? cloneElement(children, { planName }) : children;
 }
