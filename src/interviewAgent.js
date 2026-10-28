@@ -460,10 +460,13 @@ export function buildInterviewAgent({
     ? prompts?.interview || INTERVIEW_SYSTEM_PROMPT
     : prompts?.checkin || CHECKIN_SYSTEM_PROMPT;
   const attachmentRules = prompts?.attachmentRules || ATTACHMENT_RULES;
+  // Base de conocimiento para la voz: llega armada desde el Worker, una sola vez al abrir
+  // la llamada (no hay búsquedas mientras se habla). Si no llega, la llamada sigue sin ella.
+  const knowledge = prompts?.knowledge ? `\n\n${prompts.knowledge}` : '';
 
   return new RealtimeAgent({
     name: 'Entrevista REGEN',
-    instructions: `${contextBlock}\n\n${basePrompt}\n\n${attachmentRules}`,
+    instructions: `${contextBlock}\n\n${basePrompt}\n\n${attachmentRules}${knowledge}`,
     tools: [
       flagRedFlagTool,
       noteSoftFlagTool,
