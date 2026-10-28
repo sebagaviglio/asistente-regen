@@ -1,17 +1,15 @@
 // src/InterviewScreen.jsx
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { RealtimeSession, OpenAIRealtimeWebRTC } from '@openai/agents-realtime';
 import { supabase } from './supabaseClient';
-import { buildInterviewAgent } from './interviewAgent';
+import { WORKER_URL } from './api';
+import { debugLog } from './debug';
 import { ACCEPT_ANY, uploadAttachment, buildAttachmentMessage } from './attachments';
 import VoiceOrb from './VoiceOrb';
 import CaptionBubbles from './CaptionBubbles';
 import { createAudioLevels, combineLevels } from './audioLevel';
-import { latestCaptions, sameCaptions } from './captions';
+import { latestCaptions, sameCaptions, transcriptText } from './captions';
 import './App.css';
 import './Interview.css';
-
-const WORKER_URL = 'https://regen-agente.sebagaviglio.workers.dev';
 
 const REDFLAG_REPLIES = {
   salud_mental:
@@ -20,26 +18,34 @@ const REDFLAG_REPLIES = {
     'Por lo que describís, esto puede ser una urgencia y no es algo que deba resolverse por chat. Llamá ya al 107 (SAME) o al 911, o pedile a alguien cerca que te acompañe a una guardia. Tu seguridad es lo primero.',
 };
 
-function buildTranscriptText(history) {
-  return history
-    .filter((item) => item.type === 'message')
-    .map((item) => {
-      const speaker = item.role === 'assistant' ? 'Asistente' : 'Paciente';
-      const text = (item.content || [])
-        .map((c) => {
-          if (c.type === 'text') return c.text;
-          if (c.type === 'output_audio' || c.type === 'input_audio') return c.transcript || '';
-          return '';
-        })
-        .filter(Boolean)
-        .join(' ');
-      return text ? `${speaker}: ${text}` : null;
-    })
-    .filter(Boolean)
-    .join('\n\n');
+// Eventos de la sesión que se registran en modo diagnóstico.
+const DEBUG_EVENTS = new Set([
+  'input_audio_buffer.speech_started',
+  'input_audio_buffer.speech_stopped',
+  'response.created',
+  'response.done',
+  'response.cancelled',
+]);
+
+// El SDK de voz se pide una sola vez y se comparte; si falla la descarga, se reintenta en el próximo toque.
+let realtimeModule = null;
+function loadRealtimeCall() {
+  realtimeModule ||= import('./realtimeCall.js').catch((err) => {
+    realtimeModule = null;
+    throw err;
+  });
+  return realtimeModule;
 }
 
-export default function InterviewScreen({ session: authSession, onNeedsOnboarding, planName }) {
+// Lista los micrófonos disponibles (sin permiso, los labels pueden venir vacíos).
+function listMics() {
+  return navigator.mediaDevices
+    .enumerateDevices()
+    .then((devices) => devices.filter((d) => d.kind === 'audioinput'))
+    .catch(() => []);
+}
+
+export default function InterviewScreen({ session: authSession, intake, onNeedsOnboarding, planName }) {
   const realtimeSessionRef = useRef(null);
   const interviewIdRef = useRef(null);
   const historyRef = useRef([]);
@@ -54,17 +60,10 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
     () => localStorage.getItem('regen_mic_device_id') || ''
   );
 
-  const refreshMicDevices = useCallback(async () => {
-    try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      setMicDevices(devices.filter((d) => d.kind === 'audioinput'));
-    } catch {
-      setMicDevices([]);
-    }
-  }, []);
+  const refreshMicDevices = useCallback(() => listMics().then(setMicDevices), []);
 
   useEffect(() => {
-    refreshMicDevices();
+    listMics().then(setMicDevices);
     // Los labels suelen quedar vacíos hasta que el navegador otorgó permiso
     // de mic al menos una vez — una vez que eso pasa, 'devicechange' (o un
     // refresh manual) ya los trae completos.
@@ -85,8 +84,9 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
   const [redFlagCategory, setRedFlagCategory] = useState(null);
   // null = todavía no sabemos; evita mostrar el título equivocado un instante
   const [hasHistory, setHasHistory] = useState(null);
-  // Completitud de la historia clínica: { complete, pendingCount, pending: [{key,label}] }
-  const [intakeSummary, setIntakeSummary] = useState(null);
+  // Completitud de la historia clínica: { complete, pendingCount, pending: [{key,label}] }.
+  // Arranca con lo que ya trajo App.jsx (mismo endpoint) y se actualiza al cerrar la entrevista.
+  const [intakeSummary, setIntakeSummary] = useState(intake ?? null);
   // Cantidad de temas obligatorios pendientes DURANTE la llamada (se actualiza con las tools)
   const livePendingRef = useRef(null);
   const [confirmEnd, setConfirmEnd] = useState(false);
@@ -138,16 +138,30 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
       .catch(() => setIntakeSummary(null));
   }, [authedFetch]);
 
+  // Sin el estado de App.jsx (p. ej. usada sola), lo pide ella misma.
+  const hasInitialIntake = intake !== undefined;
   useEffect(() => {
-    loadIntakeSummary();
-  }, [loadIntakeSummary]);
+    if (!hasInitialIntake) loadIntakeSummary();
+  }, [hasInitialIntake, loadIntakeSummary]);
+
+  // Con la pantalla ya pintada, baja el SDK de voz en un momento libre, así el
+  // toque del micrófono no espera la descarga.
+  useEffect(() => {
+    const prefetch = () => loadRealtimeCall().catch(() => {});
+    if (typeof window.requestIdleCallback === 'function') {
+      const id = window.requestIdleCallback(prefetch, { timeout: 4000 });
+      return () => window.cancelIdleCallback?.(id);
+    }
+    const id = setTimeout(prefetch, 1500);
+    return () => clearTimeout(id);
+  }, []);
 
   // Cierra la entrevista en el servidor. El servidor decide si la ficha está
   // completa: si falta algo, queda en borrador y se retoma en la próxima sesión.
   const finishInterview = useCallback(async () => {
     const interviewId = interviewIdRef.current;
     if (!interviewId) return;
-    const rawText = buildTranscriptText(historyRef.current);
+    const rawText = transcriptText(historyRef.current);
     if (rawText) {
       authedFetch('/realtime/save-transcript', { interviewId, rawText }).catch(() => {});
     }
@@ -185,7 +199,8 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
   );
 
   const connectRealtime = useCallback(
-    async (sessionData) => {
+    async (sessionData, realtime) => {
+      const { RealtimeSession, OpenAIRealtimeWebRTC, buildInterviewAgent } = realtime;
       interviewIdRef.current = sessionData.interviewId;
       livePendingRef.current = sessionData.intake?.pending?.length ?? null;
       const agent = buildInterviewAgent({
@@ -227,7 +242,7 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
       refreshMicDevices(); // ahora que hay permiso, trae los labels reales para la próxima vez
 
       const micLabel = micStream.getAudioTracks()[0]?.label || '';
-      console.log('[REGEN realtime] micLabel:', JSON.stringify(micLabel));
+      debugLog('micLabel:', JSON.stringify(micLabel));
       if (/airpods|bluetooth|wireless|hands-free|hfp/i.test(micLabel)) {
         setMicWarning('La conexión por Bluetooth puede bajar un poco la calidad de la llamada.');
       } else {
@@ -261,34 +276,25 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
         },
       });
 
-      // Diagnóstico: loguea cada evento crudo de la sesión en la consola
-      // del navegador, para poder VER técnicamente qué pasa en una llamada
-      // (cuántas veces se detecta "empezó a hablar"/"dejó de hablar", y si
-      // el modelo se corta) en vez de solo juzgarlo de oído.
+      // Diagnóstico (solo con ?debug o localStorage.regen_debug = '1', ver debug.js):
+      // eventos crudos de la sesión, para VER qué pasa en una llamada (cuántas
+      // veces se detecta "empezó/dejó de hablar", si el modelo se corta) en vez
+      // de juzgarlo de oído. Los errores se registran siempre.
       rtSession.on('transport_event', (event) => {
+        if (event.type === 'error') {
+          console.error('[REGEN realtime] error', event);
+          return;
+        }
         if (event.type === 'session.updated') {
-          // Expandido a texto completo a propósito: así se puede ver el
-          // valor real de turn_detection.type y confirmar si semantic_vad
-          // quedó aplicado de verdad, sin depender de expandir el objeto
-          // colapsado de la consola.
-          console.log(
-            '[REGEN realtime] session.updated — turn_detection:',
+          // Expandido a texto: así se ve si semantic_vad quedó aplicado de verdad.
+          debugLog(
+            'session.updated — turn_detection:',
             JSON.stringify(event.session?.audio?.input?.turn_detection, null, 2),
             '— noise_reduction:',
             JSON.stringify(event.session?.audio?.input?.noise_reduction, null, 2)
           );
-        }
-        if (
-          [
-            'input_audio_buffer.speech_started',
-            'input_audio_buffer.speech_stopped',
-            'response.created',
-            'response.done',
-            'response.cancelled',
-            'error',
-          ].includes(event.type)
-        ) {
-          console.log('[REGEN realtime]', event.type, event);
+        } else if (DEBUG_EVENTS.has(event.type)) {
+          debugLog(event.type, event);
         }
       });
 
@@ -317,6 +323,9 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
     closeLevels();
     levelsRef.current = createAudioLevels();
     try {
+      // El SDK (si todavía no bajó) y la sesión se piden en paralelo.
+      const realtimeReady = loadRealtimeCall();
+      realtimeReady.catch(() => {}); // si no se usa (p. ej. falta el registro), que no quede un rechazo suelto
       const res = await authedFetch('/realtime/session');
       const data = await res.json();
 
@@ -334,7 +343,7 @@ export default function InterviewScreen({ session: authSession, onNeedsOnboardin
         return;
       }
 
-      await connectRealtime(data);
+      await connectRealtime(data, await realtimeReady);
     } catch (err) {
       console.error(err);
       micStreamRef.current?.getTracks().forEach((t) => t.stop());

@@ -6,7 +6,8 @@
 
 const MAX_CHARS = 220;
 
-function itemText(item) {
+// Lo que se dijo en una intervención, tal cual.
+function spokenText(item) {
   return (item.content || [])
     .map((c) => {
       if (c.type === 'text') return c.text;
@@ -14,9 +15,24 @@ function itemText(item) {
       return ''; // 'input_text' son los avisos internos (p. ej. archivos): no son lo que dijo la persona
     })
     .filter(Boolean)
-    .join(' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+    .join(' ');
+}
+
+// Para los subtítulos: en una sola línea.
+function itemText(item) {
+  return spokenText(item).replace(/\s+/g, ' ').trim();
+}
+
+// Transcripción completa que se guarda al cerrar la entrevista.
+export function transcriptText(history) {
+  return (history || [])
+    .filter((item) => item?.type === 'message')
+    .map((item) => {
+      const text = spokenText(item);
+      return text ? `${item.role === 'assistant' ? 'Asistente' : 'Paciente'}: ${text}` : null;
+    })
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 // Si la intervención es larga, mostramos el final (lo que se está diciendo ahora).

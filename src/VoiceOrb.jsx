@@ -1,6 +1,6 @@
 // src/VoiceOrb.jsx
 //
-// Esfera de voz dibujada en un canvas (reemplaza al VoiceBeam de voice-glow):
+// Esfera de voz dibujada en un canvas (reemplazó al VoiceBeam de voice-glow):
 // halo salvia, tres anillos que se deforman con ondas y crecen con el volumen,
 // y un círculo lino con la «R» de REGEN al centro.
 //

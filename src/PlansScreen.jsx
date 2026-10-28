@@ -184,14 +184,17 @@ function EliteInvitation({ invitation, api, disabled, onDone }) {
 
 export default function PlansScreen({ session, status, billing, invitation = null, redirect = (url) => window.location.assign(url) }) {
   const api = useMemo(() => makeApi(session.access_token), [session.access_token]);
+  // Invitación Core/Activo: arranca con el plan elegido y el código cargado.
+  const invPlan = invitation && invitation.plan !== 'elite' ? invitation.plan : null;
+  const invCode = invPlan ? invitation.code : null;
   const [plans, setPlans] = useState(undefined); // undefined = cargando · null = error
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelected] = useState(invPlan);
   const [accepted, setAccepted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   // Cupón: se verifica contra el Worker para mostrar el precio; recién se "gasta" al pagar.
-  const [couponOpen, setCouponOpen] = useState(false);
-  const [couponInput, setCouponInput] = useState('');
+  const [couponOpen, setCouponOpen] = useState(!!invPlan);
+  const [couponInput, setCouponInput] = useState(invCode || '');
   const [coupon, setCoupon] = useState(null); // { code, offer }
   const [couponBusy, setCouponBusy] = useState(false);
   const [couponError, setCouponError] = useState(null);
@@ -204,15 +207,10 @@ export default function PlansScreen({ session, status, billing, invitation = nul
     };
   }, []);
 
-  // Invitación Core/Activo: deja el plan elegido y el código aplicado.
-  const invPlan = invitation && invitation.plan !== 'elite' ? invitation.plan : null;
-  const invCode = invPlan ? invitation.code : null;
+  // Con los planes cargados, aplica el código de la invitación.
   useEffect(() => {
     if (!invPlan || !Array.isArray(plans)) return undefined;
     let alive = true;
-    setSelected(invPlan);
-    setCouponOpen(true);
-    setCouponInput(invCode);
     validateCoupon(session.access_token, invPlan, invCode).then((res) => {
       if (!alive) return;
       if (res.ok) setCoupon({ code: invCode, offer: res.offer });

@@ -1,8 +1,8 @@
 // src/InterviewThread.jsx
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { WORKER_URL } from './api';
 import './InterviewThread.css';
 
-const WORKER_URL = 'https://regen-agente.sebagaviglio.workers.dev';
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 const ACCEPTED_TYPES =
   'image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain';
@@ -29,14 +29,17 @@ export default function InterviewThread({ interviewId, accessToken, currentSende
   const [error, setError] = useState(null);
   const fileInputRef = useRef(null);
 
-  const authedFetch = (path, body) =>
-    fetch(`${WORKER_URL}${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-      body: body ? JSON.stringify(body) : undefined,
-    });
+  const authedFetch = useCallback(
+    (path, body) =>
+      fetch(`${WORKER_URL}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: body ? JSON.stringify(body) : undefined,
+      }),
+    [accessToken]
+  );
 
-  function loadMessages() {
+  const loadMessages = useCallback(() => {
     authedFetch('/interview/messages', { interviewId })
       .then(async (res) => {
         const data = await res.json();
@@ -51,9 +54,9 @@ export default function InterviewThread({ interviewId, accessToken, currentSende
         setError(`Error cargando mensajes: ${err.message}`);
         setMessages([]);
       });
-  }
+  }, [authedFetch, interviewId]);
 
-  useEffect(loadMessages, [interviewId]);
+  useEffect(loadMessages, [loadMessages]);
 
   function handleFilePick(e) {
     const files = Array.from(e.target.files || []);

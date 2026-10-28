@@ -1,13 +1,12 @@
 // src/FichaScreen.jsx
 import { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
+import { WORKER_URL } from './api';
 import InterviewThread from './InterviewThread';
 import BiomarkerEvolution from './BiomarkerEvolution';
 import ProfilePanel from './ProfilePanel';
 import './FichaScreen.css';
 import './Evolution.css';
-
-const WORKER_URL = 'https://regen-agente.sebagaviglio.workers.dev';
 
 const STATUS_LABELS = {
   borrador: 'Incompleta · se retoma',
@@ -63,8 +62,9 @@ export default function FichaScreen({ session, status, onProfileChanged }) {
         },
         body: JSON.stringify({ interviewId }),
       });
-      const data = await res.json();
-      setSelected(data);
+      setSelected(await res.json());
+    } catch {
+      setSelected({}); // el detalle muestra «No pudimos cargar esta entrevista.»
     } finally {
       setLoadingDetail(false);
     }
@@ -129,7 +129,7 @@ export default function FichaScreen({ session, status, onProfileChanged }) {
                   para completar tu historia clínica. Tu ficha se envía al equipo cuando esté completa.
                 </p>
                 <ul className="ra-pending">
-                  {[...status.intake.missingWritten, ...status.intake.pending].map((p) => (
+                  {[...(status.intake.missingWritten ?? []), ...(status.intake.pending ?? [])].map((p) => (
                     <li key={p.key}>{p.label}</li>
                   ))}
                 </ul>
