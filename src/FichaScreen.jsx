@@ -153,7 +153,11 @@ export default function FichaScreen({ session, status, onProfileChanged }) {
                       {STATUS_LABELS[iv.status] || iv.status}
                     </span>
                     <span className="ra-ficha__item-preview">
-                      {iv.motivo_consulta ? iv.motivo_consulta.slice(0, 80) : 'Sin motivo registrado todavía'}
+                      {iv.session_reason
+                        ? iv.session_reason.slice(0, 120)
+                        : iv.has_summary
+                          ? 'Entrevista sin motivo específico'
+                          : 'Preparando el resumen de esta entrevista…'}
                     </span>
                   </button>
                 </li>
@@ -168,8 +172,49 @@ export default function FichaScreen({ session, status, onProfileChanged }) {
   );
 }
 
+// Lo conversado en ESTA entrevista (lo genera el Worker desde la transcripción de la sesión).
+function SessionSummaryBlock({ summary }) {
+  if (!summary) {
+    return (
+      <div className="ra-ficha-detail__block ra-ficha-detail__summary">
+        <h3>Resumen de esta entrevista</h3>
+        <p>Estamos preparando el resumen. Volvé a abrir esta entrevista en unos minutos.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="ra-ficha-detail__block ra-ficha-detail__summary">
+      <h3>Resumen de esta entrevista</h3>
+      {summary.reason && <p className="ra-ficha-detail__summary-reason">{summary.reason}</p>}
+      {summary.resumen?.length > 0 && (
+        <ul>
+          {summary.resumen.map((r, i) => (
+            <li key={i}>{r}</li>
+          ))}
+        </ul>
+      )}
+      {summary.novedades?.length > 0 && (
+        <>
+          <h4>Novedades desde la entrevista anterior</h4>
+          <ul>
+            {summary.novedades.map((r, i) => (
+              <li key={i}>{r}</li>
+            ))}
+          </ul>
+        </>
+      )}
+      {summary.pedido && (
+        <>
+          <h4>Lo que le pediste a REGEN</h4>
+          <p>{summary.pedido}</p>
+        </>
+      )}
+    </div>
+  );
+}
+
 function InterviewDetail({ data, onBack, session }) {
-  const { interview, redFlags, files } = data;
+  const { interview, redFlags, files, summary } = data;
   if (!interview) return <p className="ra-ficha__empty">No pudimos cargar esta entrevista.</p>;
 
   return (
@@ -194,16 +239,24 @@ function InterviewDetail({ data, onBack, session }) {
         </div>
       )}
 
-      <div className="ra-ficha-detail__blocks">
-        {Object.entries(BLOCK_LABELS).map(([key, label]) =>
-          interview[key] ? (
-            <div key={key} className="ra-ficha-detail__block">
-              <h3>{label}</h3>
-              <p>{interview[key]}</p>
-            </div>
-          ) : null
-        )}
-      </div>
+      <SessionSummaryBlock summary={summary} />
+
+      <details className="ra-ficha-detail__record">
+        <summary>Mi ficha acumulada hasta esta entrevista</summary>
+        <p className="ra-ficha-detail__record-note">
+          Son los datos que fuiste completando con el tiempo, no lo conversado solo en esta entrevista.
+        </p>
+        <div className="ra-ficha-detail__blocks">
+          {Object.entries(BLOCK_LABELS).map(([key, label]) =>
+            interview[key] ? (
+              <div key={key} className="ra-ficha-detail__block">
+                <h3>{label}</h3>
+                <p>{interview[key]}</p>
+              </div>
+            ) : null
+          )}
+        </div>
+      </details>
 
       {files?.length > 0 && <FilesList files={files} accessToken={session.access_token} />}
 
