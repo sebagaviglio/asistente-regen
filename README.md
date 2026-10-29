@@ -2,7 +2,7 @@
 
 App del paciente de REGEN (asistente.regen.ar): registro, entrevista de voz con el
 asistente, «Mi ficha médica» y planes. React + Vite, publicada en Vercel desde `main`.
-Habla con el Worker de REGEN (`src/api.js` tiene la URL) y con Supabase para la sesión.
+Habla con el Worker de REGEN (`src/api.js` tiene la URL) y con Supabase solo para el login.
 
 ## Cómo correrla
 
@@ -20,9 +20,13 @@ npm run check   # lint + todas las pruebas
 
 - `test/*.test.mjs` usa `node --test` y renderiza las pantallas de verdad con jsdom.
 - `test/bundle_budget.test.mjs` compila la app y controla la primera carga:
-  - JS inicial ≤ 150 KB gzip;
+  - JS inicial ≤ 112 KB gzip;
   - el SDK de voz (`src/realtimeCall.js`) y las pantallas secundarias se cargan recién al usarlas;
   - todo el CSS va en la carga inicial, para que la cascada sea la misma en todas las pantallas.
+  - de Supabase viaja solo el cliente de login (`@supabase/auth-js`).
+- `test/auth_client.test.mjs` cuida que el login se comporte igual que con `@supabase/supabase-js`:
+  misma clave en el navegador (las sesiones abiertas no se cierran) y mismos pedidos para email,
+  Google, alta y salida.
 
   Si un cambio lo rompe, mirá qué import estático arrastró algo pesado a la carga inicial.
 
