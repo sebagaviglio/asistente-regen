@@ -11,8 +11,9 @@ import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { build } from 'vite';
 
-// Presupuesto de JS de la primera carga (comprimido con gzip). Antes: 425 KB.
-const INITIAL_JS_BUDGET_KB = 150;
+// Presupuesto de JS de la primera carga (comprimido con gzip). Antes: 425 KB; sin el
+// SDK de voz, 135 KB; con solo el cliente de login de Supabase, ~104 KB.
+const INITIAL_JS_BUDGET_KB = 112;
 
 const outDir = mkdtempSync(join(tmpdir(), 'regen-budget-'));
 process.env.VITE_SUPABASE_URL = 'https://ejemplo.supabase.co';
@@ -52,6 +53,12 @@ test('primera carga: las pantallas secundarias se cargan al abrirlas', () => {
   for (const screen of ['src/AuthForm.jsx', 'src/OnboardingWizard.jsx', 'src/FichaScreen.jsx', 'src/PlansScreen.jsx', 'src/PaymentReturn.jsx']) {
     assert.ok(manifest[screen]?.isDynamicEntry, `${screen} debería ser un chunk aparte`);
     assert.ok(!initial.includes(screen), `${screen} no debería estar en la carga inicial`);
+  }
+});
+
+test('Supabase: solo viaja el login (sin base de datos, archivos ni tiempo real)', () => {
+  for (const marker of ['rest/v1', 'storage/v1', 'realtime/v1']) {
+    assert.ok(!initialCode.includes(marker), `"${marker}" quedó en el JS inicial`);
   }
 });
 
