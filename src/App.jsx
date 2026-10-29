@@ -1,18 +1,26 @@
 // src/App.jsx
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from './supabaseClient';
 import { makeApi } from './api';
-import AuthForm from './AuthForm';
-import OnboardingWizard from './OnboardingWizard';
 import InterviewScreen from './InterviewScreen';
-import FichaScreen from './FichaScreen';
 import BillingGate from './BillingGate';
+import LoadingScreen from './LoadingScreen';
+
+// Pantallas que no se ven en cada visita: su código baja recién cuando hace falta.
+const AuthForm = lazy(() => import('./AuthForm'));
+const OnboardingWizard = lazy(() => import('./OnboardingWizard'));
+const FichaScreen = lazy(() => import('./FichaScreen'));
 
 export default function App() {
   const [session, setSession] = useState(undefined); // undefined = todavía no sabemos
-  const [status, setStatus] = useState(undefined); // undefined = cargando · null = error · objeto = estado del registro
+  // Estado del registro de la persona con sesión: undefined = cargando · null = error · objeto = estado.
+  // Se guarda junto con el usuario al que pertenece, así al cambiar de cuenta vuelve a «cargando» sin efectos extra.
+  const [statusEntry, setStatusEntry] = useState({ userId: null, value: undefined });
   const sessionRef = useRef(null);
-  sessionRef.current = session;
+
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -29,31 +37,30 @@ export default function App() {
     const s = sessionRef.current;
     if (!s) return;
     const { ok, data } = await makeApi(s.access_token).post('/patients/me/profile');
-    setStatus(ok ? data : null);
+    setStatusEntry({ userId: s.user?.id, value: ok ? data : null });
   }, []);
 
   const userId = session?.user?.id;
   useEffect(() => {
-    setStatus(undefined);
     if (userId) refreshStatus();
   }, [userId, refreshStatus]);
+
+  const status = statusEntry.userId === userId ? statusEntry.value : undefined;
 
   if (session === undefined) {
     return null; // evita un parpadeo de login antes de saber si ya hay sesión
   }
 
   if (!session) {
-    return <AuthForm />;
+    return (
+      <Suspense fallback={null}>
+        <AuthForm />
+      </Suspense>
+    );
   }
 
   if (status === undefined) {
-    return (
-      <div className="ra-app">
-        <p className="ra-ficha__empty" style={{ textAlign: 'center', marginTop: 80 }}>
-          Cargando…
-        </p>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (status === null) {
@@ -71,21 +78,29 @@ export default function App() {
   // salud básica, que se puede omitir), no se muestra el resto de la app.
   const ob = status.onboarding;
   if (!ob.personalDone || !ob.consentDone || !ob.healthDone) {
-    return <OnboardingWizard session={session} status={status} onChanged={refreshStatus} />;
+    return (
+      <Suspense fallback={<LoadingScreen />}>
+        <OnboardingWizard session={session} status={status} onChanged={refreshStatus} />
+      </Suspense>
+    );
   }
 
   // Ruteo simple sin librería: alcanza para dos pantallas.
   const isFicha = window.location.pathname.startsWith('/mi-ficha');
   if (isFicha) {
     // La ficha nunca se bloquea: quien no pagó sigue viendo sus datos.
-    return <FichaScreen session={session} status={status} onProfileChanged={refreshStatus} />;
+    return (
+      <Suspense fallback={<LoadingScreen />}>
+        <FichaScreen session={session} status={status} onProfileChanged={refreshStatus} />
+      </Suspense>
+    );
   }
 
   // Pagos: planes en /planes, vuelta de Mercado Pago y, solo en modo "live", filtro
   // antes de la entrevista. En los demás modos deja pasar a la entrevista como siempre.
   return (
     <BillingGate session={session} status={status}>
-      <InterviewScreen session={session} onNeedsOnboarding={refreshStatus} />
+      <InterviewScreen session={session} intake={status.intake ?? null} onNeedsOnboarding={refreshStatus} />
     </BillingGate>
   );
 }

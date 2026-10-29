@@ -12,17 +12,28 @@ export const RINGS = [
   [106, 'rgba(185,200,174,.9)', 1.6],
 ];
 
+// El halo no cambia entre cuadros: se crea una vez por canvas. Está en el espacio
+// de dibujo fijo, así que sigue sirviendo cuando el canvas cambia de tamaño.
+const haloCache = new WeakMap();
+function halo(ctx, cx, cy) {
+  let g = haloCache.get(ctx);
+  if (!g) {
+    g = ctx.createRadialGradient(cx, cy, 10, cx, cy, 230);
+    g.addColorStop(0, 'rgba(185,200,174,.55)');
+    g.addColorStop(0.5, 'rgba(120,143,118,.18)');
+    g.addColorStop(1, 'rgba(120,143,118,0)');
+    haloCache.set(ctx, g);
+  }
+  return g;
+}
+
 // Dibuja un cuadro. t = tiempo en segundos, A = amplitud 0..1.
 export function drawOrb(ctx, t, A) {
   const cx = ORB_W / 2;
   const cy = ORB_H / 2;
   ctx.clearRect(0, 0, ORB_W, ORB_H);
 
-  const g = ctx.createRadialGradient(cx, cy, 10, cx, cy, 230);
-  g.addColorStop(0, 'rgba(185,200,174,.55)');
-  g.addColorStop(0.5, 'rgba(120,143,118,.18)');
-  g.addColorStop(1, 'rgba(120,143,118,0)');
-  ctx.fillStyle = g;
+  ctx.fillStyle = halo(ctx, cx, cy);
   ctx.beginPath();
   ctx.arc(cx, cy, 230, 0, Math.PI * 2);
   ctx.fill();

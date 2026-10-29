@@ -3,11 +3,14 @@
 // Envuelve la pantalla de la entrevista y decide qué mostrar según el estado de pagos
 // (ver decideGate en billing.js). Con el Worker en modo "off" o "test" no cambia nada
 // para nadie; solo en modo "live" manda a elegir plan a quien no tiene acceso.
-import { cloneElement, isValidElement, useCallback, useEffect, useState } from 'react';
+import { cloneElement, isValidElement, lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { fetchBilling, decideGate, activePlanName } from './billing';
-import PlansScreen from './PlansScreen';
-import PaymentReturn from './PaymentReturn';
 import { readInvitation } from './invitation';
+import LoadingScreen from './LoadingScreen';
+
+// Planes y vuelta de Mercado Pago no se ven en cada visita: se cargan al abrirlas.
+const PlansScreen = lazy(() => import('./PlansScreen'));
+const PaymentReturn = lazy(() => import('./PaymentReturn'));
 
 export default function BillingGate({ session, status, children }) {
   const [billing, setBilling] = useState(undefined); // undefined = cargando · null = no se pudo consultar
@@ -29,21 +32,18 @@ export default function BillingGate({ session, status, children }) {
     search: window.location.search,
   });
 
-  if (screen === 'loading') {
-    return (
-      <div className="ra-app">
-        <p className="ra-ficha__empty" style={{ textAlign: 'center', marginTop: 80 }}>
-          Cargando…
-        </p>
-      </div>
-    );
-  }
-  if (screen === 'return') return <PaymentReturn session={session} onBilling={onBilling} />;
-  if (screen === 'plans') return <PlansScreen session={session} status={status} billing={billing} invitation={readInvitation()} />;
+  if (screen === 'loading') return <LoadingScreen />;
+  if (screen === 'return') return withFallback(<PaymentReturn session={session} onBilling={onBilling} />);
   // Quien llega con una invitación ve primero sus planes, aunque los pagos todavía no bloqueen a nadie.
   const invitation = readInvitation();
-  if (invitation && billing) return <PlansScreen session={session} status={status} billing={billing} invitation={invitation} />;
+  if (screen === 'plans' || (invitation && billing)) {
+    return withFallback(<PlansScreen session={session} status={status} billing={billing} invitation={invitation} />);
+  }
   // La entrevista muestra el plan activo en un chip: se lo pasamos sin tocar nada más.
   const planName = activePlanName(billing);
   return planName && isValidElement(children) ? cloneElement(children, { planName }) : children;
+}
+
+function withFallback(screen) {
+  return <Suspense fallback={<LoadingScreen />}>{screen}</Suspense>;
 }

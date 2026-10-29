@@ -1,16 +1,45 @@
-# React + Vite
+# asistente-regen
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+App del paciente de REGEN (asistente.regen.ar): registro, entrevista de voz con el
+asistente, «Mi ficha médica» y planes. React + Vite, publicada en Vercel desde `main`.
+Habla con el Worker de REGEN (`src/api.js` tiene la URL) y con Supabase para la sesión.
 
-Currently, two official plugins are available:
+## Cómo correrla
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```
+npm ci
+# creá un archivo .env con VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY
+npm run dev
+```
 
-## React Compiler
+## Antes de subir un cambio
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```
+npm run check   # lint + todas las pruebas
+```
 
-## Expanding the ESLint configuration
+- `test/*.test.mjs` usa `node --test` y renderiza las pantallas de verdad con jsdom.
+- `test/bundle_budget.test.mjs` compila la app y controla la primera carga:
+  - JS inicial ≤ 150 KB gzip;
+  - el SDK de voz (`src/realtimeCall.js`) y las pantallas secundarias se cargan recién al usarlas;
+  - todo el CSS va en la carga inicial, para que la cascada sea la misma en todas las pantallas.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+  Si un cambio lo rompe, mirá qué import estático arrastró algo pesado a la carga inicial.
+
+## Rendimiento: cómo está armado
+
+- **Voz bajo demanda.** `@openai/agents-realtime`, `zod` y el agente pesan ~1 MB. Están en
+  `src/realtimeCall.js`, que se baja en un momento libre con la pantalla de la entrevista ya
+  pintada, y se espera (en paralelo con la sesión) al tocar el micrófono.
+- **Pantallas bajo demanda.** Login, registro, ficha, planes y vuelta de Mercado Pago usan
+  `React.lazy`. Mientras llega su código se ve el mismo «Cargando…» de siempre.
+- **CSS.** Se importa todo en `src/main.jsx`, en un orden fijo. Si agregás un archivo `.css`,
+  sumalo ahí.
+- **Esfera.** Un solo `requestAnimationFrame`, que se frena con la pestaña oculta o fuera de
+  pantalla; el halo se crea una vez por canvas.
+
+## Diagnóstico de una llamada
+
+Los eventos crudos de la sesión de voz (VAD, respuestas, configuración aplicada) no se
+muestran en la consola de producción. Para verlos, abrí la app con `?debug` o ejecutá en la
+consola `localStorage.regen_debug = '1'`. Los errores se registran siempre.

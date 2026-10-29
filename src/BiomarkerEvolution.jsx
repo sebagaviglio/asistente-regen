@@ -65,17 +65,20 @@ export default function BiomarkerEvolution({ session }) {
   const [showAdd, setShowAdd] = useState(false);
   const [open, setOpen] = useState({});
 
-  const load = useCallback(async () => {
-    const [cat, rd] = await Promise.all([api.post('/biomarkers/catalog'), api.post('/biomarkers/readings')]);
-    if (!cat.ok || !rd.ok) {
-      setError(rd.data?.error || cat.data?.error || 'No pudimos cargar tus mediciones.');
-      setReadings((prev) => prev || []);
-      return;
-    }
-    setTypes(cat.data.types);
-    setReadings(rd.data.readings);
-    setError(null);
-  }, [api]);
+  const load = useCallback(
+    () =>
+      Promise.all([api.post('/biomarkers/catalog'), api.post('/biomarkers/readings')]).then(([cat, rd]) => {
+        if (!cat.ok || !rd.ok) {
+          setError(rd.data?.error || cat.data?.error || 'No pudimos cargar tus mediciones.');
+          setReadings((prev) => prev || []);
+          return;
+        }
+        setTypes(cat.data.types);
+        setReadings(rd.data.readings);
+        setError(null);
+      }),
+    [api]
+  );
 
   useEffect(() => {
     load();
