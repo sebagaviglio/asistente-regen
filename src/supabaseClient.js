@@ -10,6 +10,7 @@
 // del token y lectura de la sesión que vuelve en la URL después de Google.
 // test/auth_client.test.mjs lo verifica.
 import { AuthClient } from '@supabase/auth-js';
+import { authStorage } from './platform.js';
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -28,6 +29,7 @@ const auth = new AuthClient({
   storageKey: `sb-${base.hostname.split('.')[0]}-auth-token`,
   autoRefreshToken: true,
   persistSession: true,
+  storage: authStorage, // localStorage en la web; almacenamiento seguro del sistema en la app (platform.js)
   detectSessionInUrl: true,
   flowType: 'implicit',
 });

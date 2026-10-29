@@ -14,6 +14,9 @@ import { makeApi, ageFromISO } from './api';
 import { fetchPlans, planView, checkoutErrorMessage, validateCoupon, couponView } from './billing';
 import { TERMS_VERSION, TERMS_SECTIONS } from './termsText';
 import { clearInvitation, inviteErrorMessage } from './invitation';
+import Link from './Link';
+import { navigate } from './router';
+import { openExternal } from './platform';
 import './App.css';
 import './Billing.css';
 
@@ -182,7 +185,7 @@ function EliteInvitation({ invitation, api, disabled, onDone }) {
   );
 }
 
-export default function PlansScreen({ session, status, billing, invitation = null, redirect = (url) => window.location.assign(url) }) {
+export default function PlansScreen({ session, status, billing, invitation = null, redirect = openExternal }) {
   const api = useMemo(() => makeApi(session.access_token), [session.access_token]);
   // Invitación Core/Activo: arranca con el plan elegido y el código cargado.
   const invPlan = invitation && invitation.plan !== 'elite' ? invitation.plan : null;
@@ -328,9 +331,9 @@ export default function PlansScreen({ session, status, billing, invitation = nul
           <span className="ra-brand__word">Regen</span>
         </div>
         <div className="ra-topbar__right">
-          <a className="ra-ficha-link" href="/mi-ficha">
+          <Link className="ra-ficha-link" to="/mi-ficha">
             Mi ficha médica
-          </a>
+          </Link>
           <button type="button" className="ra-logout" onClick={() => supabase.auth.signOut()}>
             Salir
           </button>
@@ -356,7 +359,7 @@ export default function PlansScreen({ session, status, billing, invitation = nul
             disabled={isMinor}
             onDone={() => {
               clearInvitation();
-              window.location.assign('/');
+              navigate('/');
             }}
           />
         )}

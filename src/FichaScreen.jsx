@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
 import { WORKER_URL } from './api';
+import Link from './Link';
 import InterviewThread from './InterviewThread';
 import BiomarkerEvolution from './BiomarkerEvolution';
 import ProfilePanel from './ProfilePanel';
@@ -78,9 +79,9 @@ export default function FichaScreen({ session, status, onProfileChanged }) {
           <span className="ra-brand__word">Regen</span>
         </div>
         <div className="ra-topbar__right">
-          <a className="ra-ficha-link" href="/">
+          <Link className="ra-ficha-link" to="/">
             Volver a la entrevista
-          </a>
+          </Link>
           <button type="button" className="ra-logout" onClick={() => supabase.auth.signOut()}>
             Salir
           </button>
@@ -133,9 +134,9 @@ export default function FichaScreen({ session, status, onProfileChanged }) {
                     <li key={p.key}>{p.label}</li>
                   ))}
                 </ul>
-                <a className="ra-ficha-link" href="/">
+                <Link className="ra-ficha-link" to="/">
                   Seguir completándola
-                </a>
+                </Link>
               </div>
             )}
 

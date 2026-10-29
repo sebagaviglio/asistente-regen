@@ -5,6 +5,7 @@ import { makeApi } from './api';
 import InterviewScreen from './InterviewScreen';
 import BillingGate from './BillingGate';
 import LoadingScreen from './LoadingScreen';
+import { useLocation } from './router';
 
 // Pantallas que no se ven en cada visita: su código baja recién cuando hace falta.
 const AuthForm = lazy(() => import('./AuthForm'));
@@ -17,6 +18,7 @@ export default function App() {
   // Se guarda junto con el usuario al que pertenece, así al cambiar de cuenta vuelve a «cargando» sin efectos extra.
   const [statusEntry, setStatusEntry] = useState({ userId: null, value: undefined });
   const sessionRef = useRef(null);
+  const { pathname } = useLocation();
 
   useEffect(() => {
     sessionRef.current = session;
@@ -85,8 +87,8 @@ export default function App() {
     );
   }
 
-  // Ruteo simple sin librería: alcanza para dos pantallas.
-  const isFicha = window.location.pathname.startsWith('/mi-ficha');
+  // Ruteo simple sin librería (router.jsx): alcanza para dos pantallas.
+  const isFicha = pathname.startsWith('/mi-ficha');
   if (isFicha) {
     // La ficha nunca se bloquea: quien no pagó sigue viendo sus datos.
     return (

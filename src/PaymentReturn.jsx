@@ -10,6 +10,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from './supabaseClient';
 import { fetchBilling, isPaymentConfirmed } from './billing';
+import { navigate, useLocation } from './router';
 import './App.css';
 import './Onboarding.css';
 
@@ -17,7 +18,8 @@ const INTERVAL_MS = 3000;
 const MAX_TRIES = 20;
 
 export default function PaymentReturn({ session, onBilling }) {
-  const params = useMemo(() => new URLSearchParams(window.location.search), []);
+  const { search } = useLocation();
+  const params = useMemo(() => new URLSearchParams(search), [search]);
   const kind = params.get('pago'); // 'suscripcion' | 'diagnostico'
   const ref = params.get('ref');
   const failedAtMp = kind === 'diagnostico' && params.get('estado') === 'error';
@@ -86,7 +88,7 @@ export default function PaymentReturn({ session, onBilling }) {
                   ? 'Ya podés empezar tu entrevista con el asistente. Te vamos a enviar el comprobante por email.'
                   : 'Te vamos a enviar el comprobante por email. Ahora podés elegir tu plan para seguir.'}
               </p>
-              <button type="button" className="pf-submit" onClick={() => window.location.assign(isSub ? '/' : '/planes')}>
+              <button type="button" className="pf-submit" onClick={() => navigate(isSub ? '/' : '/planes')}>
                 {isSub ? 'Empezar mi entrevista' : 'Ver planes'}
               </button>
             </>
@@ -100,7 +102,7 @@ export default function PaymentReturn({ session, onBilling }) {
                 intentarlo.
               </p>
               <div className="pf-actions">
-                <button type="button" className="pf-skip" onClick={() => window.location.assign('/planes')}>
+                <button type="button" className="pf-skip" onClick={() => navigate('/planes')}>
                   Volver a los planes
                 </button>
                 <button
@@ -121,7 +123,7 @@ export default function PaymentReturn({ session, onBilling }) {
             <>
               <h1 className="ob-title">No se pudo completar el pago</h1>
               <p className="ob-lead">Podés intentarlo de nuevo cuando quieras.</p>
-              <button type="button" className="pf-submit" onClick={() => window.location.assign('/planes')}>
+              <button type="button" className="pf-submit" onClick={() => navigate('/planes')}>
                 Volver a los planes
               </button>
             </>

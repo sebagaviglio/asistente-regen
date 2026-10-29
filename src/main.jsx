@@ -15,11 +15,17 @@ import './FichaScreen.css'
 import './Billing.css'
 import App from './App.jsx'
 import { captureInvitationFromUrl } from './invitation.js'
+import { IS_PRODUCTION } from './config.js'
 
 captureInvitationFromUrl()
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
+    {!IS_PRODUCTION && (
+      <div className="ra-env-banner" role="status">
+        Entorno de prueba · no cargues datos reales
+      </div>
+    )}
     <App />
   </StrictMode>,
 )

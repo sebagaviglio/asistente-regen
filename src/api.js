@@ -3,7 +3,10 @@
 // Cliente mínimo del Worker de REGEN. Todos los endpoints nuevos son POST con
 // JSON y el access token de Supabase del paciente.
 
-export const WORKER_URL = 'https://regen-agente.sebagaviglio.workers.dev';
+import { WORKER_URL } from './config.js';
+
+// La dirección del Worker se define por entorno en config.js; se sigue exportando desde acá.
+export { WORKER_URL };
 
 export function makeApi(accessToken) {
   async function post(path, body) {

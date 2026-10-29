@@ -7,6 +7,7 @@ import { cloneElement, isValidElement, lazy, Suspense, useCallback, useEffect, u
 import { fetchBilling, decideGate, activePlanName } from './billing';
 import { readInvitation } from './invitation';
 import LoadingScreen from './LoadingScreen';
+import { useLocation } from './router';
 
 // Planes y vuelta de Mercado Pago no se ven en cada visita: se cargan al abrirlas.
 const PlansScreen = lazy(() => import('./PlansScreen'));
@@ -15,6 +16,7 @@ const PaymentReturn = lazy(() => import('./PaymentReturn'));
 export default function BillingGate({ session, status, children }) {
   const [billing, setBilling] = useState(undefined); // undefined = cargando · null = no se pudo consultar
   const token = session.access_token;
+  const { pathname, search } = useLocation();
 
   useEffect(() => {
     let alive = true;
@@ -26,11 +28,7 @@ export default function BillingGate({ session, status, children }) {
 
   const onBilling = useCallback((b) => setBilling(b), []);
 
-  const screen = decideGate({
-    billing,
-    pathname: window.location.pathname,
-    search: window.location.search,
-  });
+  const screen = decideGate({ billing, pathname, search });
 
   if (screen === 'loading') return <LoadingScreen />;
   if (screen === 'return') return withFallback(<PaymentReturn session={session} onBilling={onBilling} />);

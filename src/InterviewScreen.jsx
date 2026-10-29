@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from './supabaseClient';
 import { WORKER_URL } from './api';
+import Link from './Link';
 import { debugLog } from './debug';
 import { ACCEPT_ANY, uploadAttachment, buildAttachmentMessage } from './attachments';
 import VoiceOrb from './VoiceOrb';
@@ -48,6 +49,7 @@ function listMics() {
 export default function InterviewScreen({ session: authSession, intake, onNeedsOnboarding, planName }) {
   const realtimeSessionRef = useRef(null);
   const interviewIdRef = useRef(null);
+  const unmountedRef = useRef(false); // true cuando la pantalla ya se cerró (corta una llamada que estaba conectando)
   const historyRef = useRef([]);
   const micStreamRef = useRef(null);
   // Volumen real de la llamada (asistente y micrófono) para animar la esfera.
@@ -237,6 +239,11 @@ export default function InterviewScreen({ session: authSession, intake, onNeedsO
           autoGainControl: true,
         },
       });
+      if (unmountedRef.current) {
+        // La persona salió de la pantalla mientras aceptaba el permiso del micrófono.
+        micStream.getTracks().forEach((t) => t.stop());
+        return;
+      }
       micStreamRef.current = micStream;
       levelsRef.current?.attachMic(micStream);
       refreshMicDevices(); // ahora que hay permiso, trae los labels reales para la próxima vez
@@ -305,6 +312,13 @@ export default function InterviewScreen({ session: authSession, intake, onNeedsO
       });
 
       await rtSession.connect({ apiKey: sessionData.clientSecret });
+      if (unmountedRef.current) {
+        // La persona salió de la pantalla mientras se conectaba: no dejamos la llamada abierta.
+        rtSession.close();
+        micStreamRef.current?.getTracks().forEach((t) => t.stop());
+        micStreamRef.current = null;
+        return;
+      }
       realtimeSessionRef.current = rtSession;
 
       // Sin esto, el modelo espera a que el paciente hable primero (por el
@@ -400,6 +414,28 @@ export default function InterviewScreen({ session: authSession, intake, onNeedsO
     setPhase('ended');
   }, [finishInterview, closeLevels]);
 
+  // Si la pantalla se cierra con la llamada en curso (la persona va a «Mi ficha», se vence la sesión o
+  // BillingGate cambia de pantalla), la cortamos igual que con «Terminar»: antes lo hacía la recarga de la
+  // página; ahora que navegar no recarga, sin esto el micrófono y el audio seguirían abiertos.
+  // unmountedRef (declarada arriba) también frena una llamada que todavía se estaba conectando.
+  const finishRef = useRef(finishInterview);
+  useEffect(() => {
+    finishRef.current = finishInterview;
+  }, [finishInterview]);
+  useEffect(() => {
+    unmountedRef.current = false; // StrictMode monta, desmonta y vuelve a montar en desarrollo
+    return () => {
+      unmountedRef.current = true;
+      const wasLive = !!realtimeSessionRef.current;
+      realtimeSessionRef.current?.close();
+      realtimeSessionRef.current = null;
+      micStreamRef.current?.getTracks().forEach((t) => t.stop());
+      micStreamRef.current = null;
+      window.speechSynthesis?.cancel?.();
+      if (wasLive && interviewIdRef.current) finishRef.current();
+    };
+  }, []);
+
   const isLive = phase === 'live';
   const isConnecting = phase === 'connecting';
 
@@ -444,9 +480,9 @@ export default function InterviewScreen({ session: authSession, intake, onNeedsO
               Plan {planName}
             </span>
           )}
-          <a className="ra-ficha-link" href="/mi-ficha">
+          <Link className="ra-ficha-link" to="/mi-ficha">
             Mi ficha médica
-          </a>
+          </Link>
           <button type="button" className="ra-logout" onClick={() => supabase.auth.signOut()}>
             Salir
           </button>
