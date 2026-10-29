@@ -20,9 +20,13 @@ export default function BillingGate({ session, status, children }) {
 
   useEffect(() => {
     let alive = true;
-    fetchBilling(token).then((b) => alive && setBilling(b));
+    const load = () => fetchBilling(token).then((b) => alive && setBilling(b));
+    load();
+    // En la app, al volver del pago en el navegador del sistema se vuelve a consultar el estado.
+    window.addEventListener('regen:app-resume', load);
     return () => {
       alive = false;
+      window.removeEventListener('regen:app-resume', load);
     };
   }, [token]);
 

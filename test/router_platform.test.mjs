@@ -184,3 +184,10 @@ test('config: sin variables apunta a producción; con variables usa las del ento
     for (const k of keys) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; }
   }
 });
+
+// ── Web (sin Capacitor) ──────────────────────────────────────────────────
+test('en la web no hay arranque nativo: la plataforma es «web» y la sesión no espera nada', async () => {
+  assert.equal(platform.isNativeApp(), false);
+  assert.equal(platform.nativePlatform(), 'web');
+  await platform.whenNativeReady(); // ya resuelta
+});

@@ -21,3 +21,12 @@ export const WORKER_URL = String(env.VITE_WORKER_URL || PRODUCTION_WORKER_URL)
 export const APP_ENV = String(env.VITE_APP_ENV || 'production').trim().toLowerCase();
 
 export const IS_PRODUCTION = APP_ENV === 'production';
+
+// ── App nativa (Capacitor) ──────────────────────────────────────────────
+// Adónde vuelve el navegador del sistema después del login con Google o Apple. Es un esquema propio
+// de la app (registrado en Info.plist y AndroidManifest.xml). Tiene que estar en la lista de
+// «Redirect URLs» de Supabase (Authentication → URL Configuration), en staging y en producción.
+export const NATIVE_AUTH_REDIRECT = 'ar.regen.app://auth-callback';
+
+// Direcciones web que, si se tocan con la app instalada, se abren dentro de ella (links universales, Fase 3).
+export const APP_HOSTS = ['app.regen.ar', 'asistente.regen.ar'];

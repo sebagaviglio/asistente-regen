@@ -56,6 +56,14 @@ test('primera carga: las pantallas secundarias se cargan al abrirlas', () => {
   }
 });
 
+test('app nativa: el código de Capacitor es un archivo aparte que la web nunca descarga', () => {
+  assert.ok(manifest['src/native.js']?.isDynamicEntry, 'native.js se carga con import()');
+  assert.ok(!initial.includes('src/native.js'));
+  for (const marker of ['appUrlOpen', 'afterFirstUnlockThisDeviceOnly', 'SecureStorage']) {
+    assert.ok(!initialCode.includes(marker), `"${marker}" quedó en el JS inicial`);
+  }
+});
+
 test('Supabase: solo viaja el login (sin base de datos, archivos ni tiempo real)', () => {
   for (const marker of ['rest/v1', 'storage/v1', 'realtime/v1']) {
     assert.ok(!initialCode.includes(marker), `"${marker}" quedó en el JS inicial`);

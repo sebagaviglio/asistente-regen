@@ -8,12 +8,24 @@
     "build": "vite build",
     "dev:staging": "vite --mode staging",
     "build:staging": "vite build --mode staging",
+    "native:sync": "vite build --mode staging && cap sync",
+    "native:sync:production": "vite build && cap sync",
+    "native:ios": "npm run native:sync && cap open ios",
+    "native:android": "npm run native:sync && cap open android",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "node --test test/*.test.mjs",
     "check": "eslint . && node --test test/*.test.mjs"
   },
   "dependencies": {
+    "@aparajita/capacitor-secure-storage": "^8.0.1",
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/browser": "^8.0.5",
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/ios": "^8.6.0",
+    "@capacitor/keyboard": "^8.0.6",
+    "@capacitor/status-bar": "^8.0.4",
     "@openai/agents-realtime": "^0.18.0",
     "@supabase/auth-js": "^2.117.2",
     "react": "^19.2.8",
@@ -21,6 +33,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.6.0",
     "@eslint/js": "^10.0.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",

@@ -1,6 +1,8 @@
 // src/AuthForm.jsx
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
+import { isNativeApp, nativePlatform, openExternal } from './platform';
+import { NATIVE_AUTH_REDIRECT } from './config';
 import './AuthForm.css';
 
 // Supabase devuelve los mensajes de error en inglés (vienen tal cual de su
@@ -30,10 +32,27 @@ export default function AuthForm() {
 
   async function handleOAuth(provider) {
     setError(null);
+    if (isNativeApp()) {
+      // En la app el login se hace en el navegador del sistema y vuelve por un link profundo (deepLinks.js).
+      const { data, error: authError } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo: NATIVE_AUTH_REDIRECT, skipBrowserRedirect: true },
+      });
+      if (authError) setError(translateAuthError(authError.message));
+      else if (data?.url) openExternal(data.url);
+      return;
+    }
     const { error: authError } = await supabase.auth.signInWithOAuth({ provider });
     if (authError) setError(translateAuthError(authError.message));
     // Si no hay error, el navegador redirige a Google/Facebook — no hay más que hacer acá.
   }
+
+  // Si el login por el navegador del sistema falla al volver a la app, native.js lo avisa con este evento.
+  useEffect(() => {
+    const onAuthError = (e) => setError(translateAuthError(String(e.detail || '')));
+    window.addEventListener('regen:auth-error', onAuthError);
+    return () => window.removeEventListener('regen:auth-error', onAuthError);
+  }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -82,6 +101,15 @@ export default function AuthForm() {
               </svg>
               Continuar con Google
             </button>
+            {/* Apple exige ofrecer «Iniciar sesión con Apple» en iOS si hay login con Google (guía 4.8). */}
+            {nativePlatform() === 'ios' && (
+              <button type="button" className="ra-auth__oauth-btn" onClick={() => handleOAuth('apple')}>
+                <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+                  <path fill="currentColor" d="M16.4 12.6c0-2.5 2-3.6 2.1-3.7-1.2-1.7-3-1.9-3.6-2-1.5-.2-3 .9-3.8.9-.8 0-2-.9-3.3-.9-1.7 0-3.3 1-4.2 2.5-1.8 3.1-.5 7.7 1.3 10.2.9 1.2 1.9 2.6 3.2 2.5 1.3-.1 1.8-.8 3.3-.8s2 .8 3.4.8c1.4 0 2.3-1.2 3.1-2.5 1-1.4 1.4-2.8 1.4-2.9-.1 0-2.9-1.1-2.9-4.1zM13.9 5.2c.7-.9 1.2-2.1 1.1-3.3-1 0-2.3.7-3 1.6-.7.8-1.2 2-1.1 3.2 1.2.1 2.3-.6 3-1.5z" />
+                </svg>
+                Continuar con Apple
+              </button>
+            )}
           </div>
         )}
 
