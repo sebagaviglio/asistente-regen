@@ -116,7 +116,7 @@ dentro de una app, así que son las más importantes.
 
 ## Lo que quedó fuera a propósito (próximas fases)
 
-- **Ícono y pantalla de inicio de REGEN:** hoy aparecen los de Capacitor (Fase 3, desde el brandbook).
+- **Ícono y pantalla de inicio de REGEN:** ya están (Fase 3, generados desde el brandbook con `assets/`; regenerar con `npx @capacitor/assets generate --iosProject ios/App --androidProject android --assetPath assets --iconBackgroundColor "#222B1C" --splashBackgroundColor "#F4EFE5" --splashBackgroundColorDark "#222B1C"` y borrar las carpetas `icons/` y `public/manifest.webmanifest` que crea de más).
 - **Sign in with Apple:** el botón ya aparece en el iPhone, pero **no va a andar** hasta tener la cuenta de Apple Developer de organización y configurar Apple como proveedor en Supabase (depende de la Fase 0).
 - **Venta de planes en iPhone:** el plan propone lanzar iOS sin vender planes dentro de la app. Eso todavía no está aplicado: es parte de la decisión de pagos y de las fichas de tienda. Para pruebas internas no importa.
 - **Links universales** (`regen.ar/i/…` y vuelta de pago que abren la app), **notificaciones push**, **Apple Health / Health Connect**, **borrado de cuenta**: Fase 3.

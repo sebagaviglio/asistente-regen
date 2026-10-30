@@ -8,6 +8,10 @@
 // El pago ocurre en el sitio de Mercado Pago: la app nunca ve datos de tarjeta.
 // Core y Activo muestran precio; Elite no (botón "Quiero ser Elite", cupos limitados).
 // Texto de los planes: describe lo que incluyen, sin prometer resultados.
+//
+// App de iPhone: los planes Core y Activo solo se muestran (sin botón de compra ni links de pago), porque
+// Apple puede considerarlos contenido digital. Siguen funcionando la invitación con acceso sin costo y el
+// Diagnóstico inicial, que se cobra con Mercado Pago como servicio físico y clínico. Web y Android: sin cambios.
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from './supabaseClient';
 import { makeApi, ageFromISO } from './api';
@@ -16,7 +20,7 @@ import { TERMS_VERSION, TERMS_SECTIONS } from './termsText';
 import { clearInvitation, inviteErrorMessage } from './invitation';
 import Link from './Link';
 import { navigate } from './router';
-import { openExternal } from './platform';
+import { nativePlatform, openExternal } from './platform';
 import './App.css';
 import './Billing.css';
 
@@ -109,7 +113,7 @@ function EliteCard({ view, api, disabled }) {
   );
 }
 
-function PlanCard({ item, selected, onSelect, blocked, paid }) {
+function PlanCard({ item, selected, onSelect, blocked, paid, selectable = true }) {
   const { plan, view } = item;
   const isSel = selected === plan.key;
   return (
@@ -127,7 +131,7 @@ function PlanCard({ item, selected, onSelect, blocked, paid }) {
           <li key={it}>{it}</li>
         ))}
       </ul>
-      {!paid && (
+      {!paid && selectable && (
         <button
           type="button"
           className={`bl-btn ${isSel ? 'bl-btn--on' : ''}`}
@@ -185,7 +189,7 @@ function EliteInvitation({ invitation, api, disabled, onDone }) {
   );
 }
 
-export default function PlansScreen({ session, status, billing, invitation = null, redirect = openExternal }) {
+export default function PlansScreen({ session, status, billing, invitation = null, redirect = openExternal, iosStore = nativePlatform() === 'ios' }) {
   const api = useMemo(() => makeApi(session.access_token), [session.access_token]);
   // Invitación Core/Activo: arranca con el plan elegido y el código cargado.
   const invPlan = invitation && invitation.plan !== 'elite' ? invitation.plan : null;
@@ -290,7 +294,7 @@ export default function PlansScreen({ session, status, billing, invitation = nul
   }, [selected]);
 
   async function pay() {
-    if (!selected || !accepted) return;
+    if (!selected || !accepted || storeBlocked) return;
     setBusy(true);
     setError(null);
     const body = { planKey: selected, termsVersion: TERMS_VERSION };
@@ -313,11 +317,15 @@ export default function PlansScreen({ session, status, billing, invitation = nul
   }
 
   const offerView = coupon && selectedKind ? couponView(coupon.offer, selectedKind) : null;
+  // En la app de iPhone una suscripción solo se activa si no hay que pagar nada (invitación o cupón sin costo).
+  const storeBlocked = iosStore && selectedKind === 'subscription' && !(offerView && offerView.free);
 
   const blocked = isMinor || paymentsOff || hasOpenSub;
   const payLabel = !selectedView
     ? 'Elegí un plan'
-    : offerView
+    : storeBlocked
+      ? 'Este plan no se contrata desde la app'
+      : offerView
       ? offerView.payLabel
       : selected === 'diagnostico'
         ? `Pagar ${selectedView.view.price}`
@@ -344,6 +352,11 @@ export default function PlansScreen({ session, status, billing, invitation = nul
         <h1 className="ob-title">Elegí tu plan</h1>
         <p className="ob-lead">Cada plan describe lo que incluye. Los precios son finales, con impuestos incluidos.</p>
 
+        {iosStore && (
+          <p className="bl-notice bl-notice--info">
+            Acá ves lo que incluye cada plan. Si ya tenés un plan activo o una invitación de REGEN, ingresá con tu cuenta.
+          </p>
+        )}
         {notice && <p className={`bl-notice bl-notice--${notice.tone}`}>{notice.text}</p>}
         {isMinor && (
           <p className="bl-notice bl-notice--warn">
@@ -372,7 +385,15 @@ export default function PlansScreen({ session, status, billing, invitation = nul
           <>
             <section className="bl-grid" aria-label="Planes">
               {subscriptionPlans.map((item) => (
-                <PlanCard key={item.plan.key} item={item} selected={selected} onSelect={setSelected} blocked={blocked} paid={false} />
+                <PlanCard
+                  key={item.plan.key}
+                  item={item}
+                  selected={selected}
+                  onSelect={setSelected}
+                  blocked={blocked}
+                  paid={false}
+                  selectable={!iosStore || invPlan === item.plan.key}
+                />
               ))}
               {elite && <EliteCard view={elite.view} api={api} disabled={isMinor} />}
             </section>
@@ -445,7 +466,7 @@ export default function PlansScreen({ session, status, billing, invitation = nul
                 <span>Leí y acepto los Términos y Condiciones.</span>
               </label>
               {error && <p className="pf-error">{error}</p>}
-              <button type="button" className="pf-submit" disabled={!selected || !accepted || busy || blocked} onClick={pay}>
+              <button type="button" className="pf-submit" disabled={!selected || !accepted || busy || blocked || storeBlocked} onClick={pay}>
                 {busy ? 'Abriendo Mercado Pago…' : payLabel}
               </button>
               <p className="bl-fine">

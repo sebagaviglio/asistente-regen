@@ -403,3 +403,82 @@ test('vuelta de un cupón gratis: una suscripción de cortesía cuenta como conf
   await tick(5);
   assert.match(text(), /Tu suscripción está activa/);
 });
+
+// ── App de iPhone: los planes no se venden ───────────────────────────────
+const ios = { paymentsEnabled: true, paymentsMode: 'test', subscription: null, diagnostico: null };
+const FREE_CORE = { valid: true, planKey: 'core', percentOff: 100, months: 2, listPriceArs: 59999, finalPriceArs: 0, free: true };
+const PARTIAL_CORE = { valid: true, planKey: 'core', percentOff: 20, months: 3, listPriceArs: 59999, finalPriceArs: 47999, free: false };
+
+test('iPhone: Core y Activo se muestran sin botón de compra; Diagnóstico y Elite siguen disponibles', async () => {
+  installFetch({ '/plans': { status: 200, body: { plans: PLANS } } });
+  await mount(React.createElement(PlansScreen, { session, status: adult, billing: ios, iosStore: true }));
+  const t = text();
+  assert.match(t, /\$59\.999/); // la información de los planes se ve
+  assert.match(t, /ingresá con tu cuenta/);
+  const subs = [...document.querySelectorAll('.bl-grid .bl-card:not(.bl-card--elite)')];
+  assert.equal(subs.length, 2);
+  for (const card of subs) assert.equal(card.querySelector('button'), null, 'sin botón de compra');
+  assert.ok(byText('button', 'Quiero ser Elite'));
+  assert.ok(byText('.bl-extra button', 'Elegir'), 'el Diagnóstico inicial se sigue pudiendo elegir');
+});
+
+test('iPhone: el Diagnóstico inicial se cobra con Mercado Pago', async () => {
+  const calls = installFetch({
+    '/plans': { status: 200, body: { plans: PLANS } },
+    '/checkout': { status: 201, body: { kind: 'order', checkoutUrl: 'https://mp.test/pre-9', orderId: 'o9' } },
+  });
+  let redirected = null;
+  await mount(React.createElement(PlansScreen, { session, status: adult, billing: ios, iosStore: true, redirect: (u) => { redirected = u; } }));
+  await click(byText('.bl-extra button', 'Elegir'));
+  await click(q('.bl-pay input[type="checkbox"]'));
+  assert.equal(q('.bl-pay .pf-submit').disabled, false);
+  assert.match(q('.bl-pay .pf-submit').textContent, /Pagar \$299\.999/);
+  await click(q('.bl-pay .pf-submit'));
+  await tick(5);
+  assert.equal(calls.find((c) => c.path === '/checkout').body.planKey, 'diagnostico');
+  assert.equal(redirected, 'https://mp.test/pre-9');
+});
+
+test('iPhone: una invitación con acceso sin costo se activa dentro de la app', async () => {
+  const calls = installFetch({
+    '/plans': { status: 200, body: { plans: PLANS } },
+    '/coupons/validate': { status: 200, body: FREE_CORE },
+    '/checkout': { status: 201, body: { free: true, kind: 'subscription', subscriptionId: 's7' } },
+  });
+  let redirected = null;
+  await mount(React.createElement(PlansScreen, {
+    session, status: adult, billing: ios, iosStore: true, invitation: { code: 'REGEN-AAAA-BBBB', plan: 'core' }, redirect: (u) => { redirected = u; },
+  }));
+  await tick(10);
+  assert.ok(q('.bl-coupon__ok'), 'el código de la invitación se aplicó');
+  await click(q('.bl-pay input[type="checkbox"]'));
+  assert.match(q('.bl-pay .pf-submit').textContent, /Activar sin costo/);
+  assert.equal(q('.bl-pay .pf-submit').disabled, false);
+  await click(q('.bl-pay .pf-submit'));
+  await tick(5);
+  assert.equal(calls.find((c) => c.path === '/checkout').body.couponCode, 'REGEN-AAAA-BBBB');
+  assert.equal(redirected, '/?pago=suscripcion&ref=s7');
+});
+
+test('iPhone: si el cupón de la invitación igual obliga a pagar, la compra queda bloqueada', async () => {
+  const calls = installFetch({
+    '/plans': { status: 200, body: { plans: PLANS } },
+    '/coupons/validate': { status: 200, body: PARTIAL_CORE },
+  });
+  await mount(React.createElement(PlansScreen, {
+    session, status: adult, billing: ios, iosStore: true, invitation: { code: 'REGEN-AAAA-BBBB', plan: 'core' },
+  }));
+  await tick(10);
+  await click(q('.bl-pay input[type="checkbox"]'));
+  const btn = q('.bl-pay .pf-submit');
+  assert.equal(btn.disabled, true);
+  assert.match(btn.textContent, /no se contrata desde la app/);
+  assert.equal(calls.some((c) => c.path === '/checkout'), false);
+});
+
+test('web y Android: nada cambia, Core y Activo se siguen pudiendo elegir', async () => {
+  installFetch({ '/plans': { status: 200, body: { plans: PLANS } } });
+  await mount(React.createElement(PlansScreen, { session, status: adult, billing: ios, iosStore: false }));
+  assert.equal(document.querySelectorAll('.bl-grid .bl-card:not(.bl-card--elite) button').length, 2);
+  assert.doesNotMatch(text(), /ingresá con tu cuenta/);
+});
