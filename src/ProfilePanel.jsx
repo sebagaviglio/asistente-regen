@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import { makeApi } from './api';
 import { PersonalForm, HealthForm } from './ProfileForms';
+import DeleteAccount from './DeleteAccount';
 import './Onboarding.css';
 import './Evolution.css';
 
@@ -71,6 +72,8 @@ export default function ProfilePanel({ session, status, onChanged }) {
         />
         {h.saved && <p className="ev-saved">Guardado ✓</p>}
       </section>
+
+      <DeleteAccount session={session} />
     </div>
   );
 }

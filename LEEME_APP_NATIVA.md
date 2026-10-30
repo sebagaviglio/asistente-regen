@@ -129,3 +129,13 @@ dentro de una app, así que son las más importantes.
 - **«Faltan VITE_SUPABASE_URL…»:** lo mismo.
 - **El login con Google no vuelve a la app:** revisá que `ar.regen.app://auth-callback` esté en Redirect URLs de Supabase (paso 2).
 - **Otra cosa:** pegame el mensaje tal cual (de la Terminal, de Xcode o de Android Studio).
+
+## Borrado de cuenta (Fase 3)
+
+**Mi perfil → Eliminar mi cuenta** (web e iPhone/Android): explica qué pasa, pide escribir `ELIMINAR` y llama a `POST /patients/me/delete-account` del Worker
+(rama `fase3-borrado-de-cuenta` de `regen-worker`). Se cancela el débito de Mercado Pago, se cierra el acceso y se borran los datos de contacto;
+la **historia clínica se conserva 10 años** (Ley 26.529) y así lo dice la pantalla. Esa política es provisoria hasta que la revise el abogado.
+
+Para que funcione en staging y producción, el Worker necesita el secret `SUPABASE_SERVICE_ROLE_KEY` (Supabase → Project Settings → API → `service_role`):
+`npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY --env staging` (producción: `--env=""`). Es una clave muy poderosa: se pega solo en tu Terminal, nunca en el chat.
+Sin ella la baja responde "no pudimos procesar" y no toca nada. También hay que aplicar `migration_019_baja_cuenta.sql` en D1 antes de desplegar.
