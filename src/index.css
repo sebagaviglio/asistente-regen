@@ -75,18 +75,14 @@ a {
   outline-offset: 3px;
 }
 
-/* Cinta de «entorno de prueba»: solo se ve fuera de producción (VITE_APP_ENV, ver config.js). */
+/* Cinta de «entorno de prueba»: solo se ve fuera de producción (VITE_APP_ENV, ver config.js).
+   Va en el flujo de la página (arriba de todo, debajo de la muesca), no flotando: así no tapa la barra superior. */
 .ra-env-banner {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 2147483000;
-  padding: calc(env(safe-area-inset-top, 0px) + 3px) 12px 3px;
+  flex: none !important;
+  padding: 3px 12px;
   background: #c79a4b;
   color: #222b1c;
   font: 600 11px/1.4 'DM Sans', system-ui, sans-serif;
   letter-spacing: 0.04em;
   text-align: center;
-  pointer-events: none;
 }
