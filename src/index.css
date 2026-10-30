@@ -19,10 +19,40 @@
 }
 
 html,
-body,
-#root {
+body {
   height: 100%;
   margin: 0;
+}
+
+/* Móvil: nada de scroll horizontal ni de zoom por doble toque; el toque responde al instante. */
+html {
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* #root respeta la muesca y los bordes (en la app nativa la web ocupa toda la pantalla) y crece con el contenido.
+   Las pantallas llenan el alto con flex: 1, no con 100dvh, así no suman scroll de más ni se pasan del teclado. */
+#root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px);
+}
+
+#root > * {
+  flex: 1 0 auto;
+}
+
+button,
+a,
+input,
+select,
+textarea,
+summary,
+label {
+  touch-action: manipulation;
 }
 
 body {

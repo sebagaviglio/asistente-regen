@@ -139,3 +139,11 @@ la **historia clínica se conserva 10 años** (Ley 26.529) y así lo dice la pan
 Para que funcione en staging y producción, el Worker necesita el secret `SUPABASE_SERVICE_ROLE_KEY` (Supabase → Project Settings → API → `service_role`):
 `npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY --env staging` (producción: `--env=""`). Es una clave muy poderosa: se pega solo en tu Terminal, nunca en el chat.
 Sin ella la baja responde "no pudimos procesar" y no toca nada. También hay que aplicar `migration_019_baja_cuenta.sql` en D1 antes de desplegar.
+
+## Pantallas, teclado y fluidez (ajustes de UX móvil)
+
+- **Teclado:** Capacitor ahora achica la ventana (`resize: "native"`) en vez de fijar el alto del `body`. Con el teclado abierto se puede scrollear y el campo enfocado queda a la vista.
+- **Zoom al tocar un campo:** iOS hace zoom si la letra del campo es menor a 16 px (eso generaba scroll de más). Todos los campos de texto quedaron en 16 px: no volver a bajarlos.
+- **Altura y bordes:** las pantallas ya no usan `100dvh`; `#root` crece con el contenido y respeta la muesca y los bordes (`env(safe-area-inset-*)`). No hay scroll horizontal (`overflow-x: hidden` en `html`).
+- **Fluidez:** las tipografías vienen dentro de la app (`@fontsource`, ya no de Google Fonts), se sacó el desenfoque (`backdrop-filter`) de la barra superior y de la barra de voz, y los toques no esperan el doble toque (`touch-action: manipulation`).
+- Para sentir la velocidad real en el iPhone: en Xcode, **Product → Scheme → Edit Scheme → Run → Build Configuration → Release**. En Debug, con el cable puesto, todo se siente más lento.

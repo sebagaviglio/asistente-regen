@@ -1,5 +1,13 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+// Tipografías de la marca, dentro de la app (no se bajan de internet: sin demora al abrir y también andan sin conexión).
+import '@fontsource/dm-sans/latin-300.css'
+import '@fontsource/dm-sans/latin-300-italic.css'
+import '@fontsource/dm-sans/latin-400.css'
+import '@fontsource/dm-sans/latin-500.css'
+import '@fontsource/dm-sans/latin-600.css'
+import '@fontsource/bodoni-moda/latin-400.css'
+import '@fontsource/cormorant/latin-400-italic.css'
 import './index.css'
 // Todo el CSS va en la carga inicial (≈5 KB gzip), en este orden: así la cascada
 // es la misma para todas las pantallas, aunque su JS se cargue recién al abrirlas.
