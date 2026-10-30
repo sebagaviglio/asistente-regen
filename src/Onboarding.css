@@ -249,3 +249,19 @@ textarea.pf-input {
 .pf-actions {
   justify-content: flex-end;
 }
+
+/* iOS dibuja el campo de fecha con un ancho propio: se fuerza al del formulario. */
+input[type='date'].pf-input {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 46px;
+  text-align: left;
+}
+input[type='date'].pf-input::-webkit-date-and-time-value {
+  text-align: left;
+  min-height: 1.2em;
+}

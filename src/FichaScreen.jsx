@@ -5,6 +5,8 @@ import { WORKER_URL } from './api';
 import Link from './Link';
 import InterviewThread from './InterviewThread';
 import BiomarkerEvolution from './BiomarkerEvolution';
+import { fetchEvolution } from './evolutionData';
+import { cacheKey, peek, put } from './swr';
 import ProfilePanel from './ProfilePanel';
 import './FichaScreen.css';
 import './Evolution.css';
@@ -36,7 +38,7 @@ function formatDate(iso) {
 
 export default function FichaScreen({ session, status, onProfileChanged }) {
   const [tab, setTab] = useState('entrevistas'); // 'entrevistas' | 'evolucion' | 'perfil'
-  const [interviews, setInterviews] = useState(null); // null = cargando
+  const [interviews, setInterviews] = useState(() => peek(cacheKey(session, 'entrevistas')) ?? null); // null = cargando
   const [selected, setSelected] = useState(null); // detalle abierto
   const [loadingDetail, setLoadingDetail] = useState(false);
 
@@ -48,8 +50,11 @@ export default function FichaScreen({ session, status, onProfileChanged }) {
       headers: { Authorization: `Bearer ${accessToken}` },
     })
       .then((res) => res.json())
-      .then((data) => setInterviews(data.interviews || []))
-      .catch(() => setInterviews([]));
+      .then((data) => setInterviews(put(cacheKey(session, 'entrevistas'), data.interviews || [])))
+      .catch(() => setInterviews((prev) => prev ?? []));
+    // Mientras se mira la primera solapa se baja «Mi evolución»: al tocarla ya está.
+    if (!peek(cacheKey(session, 'evolucion'))) fetchEvolution(session).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken]);
 
   async function openDetail(interviewId) {

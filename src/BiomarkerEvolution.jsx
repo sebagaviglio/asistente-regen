@@ -8,6 +8,8 @@
 // interpretación es del profesional.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { makeApi, todayLocalISO } from './api';
+import { cacheKey, peek } from './swr';
+import { fetchEvolution } from './evolutionData';
 import TrendChart from './TrendChart';
 import './TrendChart.css';
 import './Evolution.css';
@@ -59,25 +61,26 @@ function rangeText(low, high, unit, decimals) {
 
 export default function BiomarkerEvolution({ session }) {
   const api = useMemo(() => makeApi(session.access_token), [session.access_token]);
-  const [types, setTypes] = useState([]);
-  const [readings, setReadings] = useState(null);
+  const cached = peek(cacheKey(session, 'evolucion'));
+  const [types, setTypes] = useState(cached?.types || []);
+  const [readings, setReadings] = useState(cached?.readings || null);
   const [error, setError] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [open, setOpen] = useState({});
 
   const load = useCallback(
     () =>
-      Promise.all([api.post('/biomarkers/catalog'), api.post('/biomarkers/readings')]).then(([cat, rd]) => {
-        if (!cat.ok || !rd.ok) {
-          setError(rd.data?.error || cat.data?.error || 'No pudimos cargar tus mediciones.');
+      fetchEvolution(session).then((res) => {
+        if (res.error) {
+          setError(res.error);
           setReadings((prev) => prev || []);
           return;
         }
-        setTypes(cat.data.types);
-        setReadings(rd.data.readings);
+        setTypes(res.types);
+        setReadings(res.readings);
         setError(null);
       }),
-    [api]
+    [session]
   );
 
   useEffect(() => {
