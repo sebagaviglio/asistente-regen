@@ -22,6 +22,9 @@ const OPEN_STATUSES = ['activa', 'en_mora', 'pausada', 'cortesia'];
 // Aviso según el estado de la suscripción de la persona.
 function subscriptionNotice(sub, entitlement) {
   if (!sub) return null;
+  if (sub.status === 'cortesia' && entitlement && entitlement.reason === 'courtesy_expired') {
+    return { tone: 'info', text: 'Tu acceso de cortesía terminó. Elegí un plan para seguir usando el asistente. Tu ficha sigue disponible.' };
+  }
   if (sub.status === 'activa' || sub.status === 'cortesia') {
     return { tone: 'ok', text: `Ya tenés el plan ${sub.planName} activo.` };
   }
@@ -227,7 +230,10 @@ export default function PlansScreen({ session, status, billing, invitation = nul
   const isMinor = age !== null && age < 18;
   const paymentsOff = billing?.paymentsEnabled === false;
   const sub = billing?.subscription || null;
-  const hasOpenSub = !!sub && OPEN_STATUSES.includes(sub.status);
+  const courtesyExpired = sub?.status === 'cortesia' && billing?.entitlement?.reason === 'courtesy_expired';
+  const hasOpenSub = !!sub && OPEN_STATUSES.includes(sub.status) && !courtesyExpired;
+  // Solo se ofrece "Ir a la entrevista" si el Worker realmente da acceso; si no, el botón volvería a esta pantalla.
+  const canEnter = hasOpenSub && billing?.entitlement?.allowed !== false;
   const diagnosticoPaid = billing?.diagnostico?.status === 'pagada';
   const notice = subscriptionNotice(sub, billing?.entitlement);
 
@@ -342,7 +348,7 @@ export default function PlansScreen({ session, status, billing, invitation = nul
         <p className="ob-lead">Cada plan describe lo que incluye. Los precios son finales, con impuestos incluidos.</p>
 
         {notice && <p className={`bl-notice bl-notice--${notice.tone}`}>{notice.text}</p>}
-        {hasOpenSub && (
+        {canEnter && (
           <button type="button" className="pf-submit" onClick={() => window.location.assign('/')}>
             Ir a la entrevista
           </button>

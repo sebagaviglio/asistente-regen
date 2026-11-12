@@ -284,6 +284,35 @@ test('en /planes con plan activo: aviso, botón «Ir a la entrevista» y sin inv
   assert.doesNotMatch(text(), /Tenés una invitación/);
 });
 
+const withExpiredCourtesy = () => ({
+  status: 200,
+  body: { paymentsEnabled: true, paymentsMode: 'live', subscription: { id: 's1', status: 'cortesia', planName: 'Core' }, diagnostico: null, entitlement: { enforced: true, allowed: false, reason: 'courtesy_expired' } },
+});
+
+test('cortesía vencida: puede elegir plan, tildar Términos, y no hay botón que vuelva a la misma pantalla', async () => {
+  goTo('');
+  installFetch({ '/subscriptions/me': withExpiredCourtesy(), '/plans': { status: 200, body: { plans: PLANS } } });
+  await mountGate();
+  assert.match(text(), /Elegí tu plan/);
+  assert.match(text(), /Tu acceso de cortesía terminó/);
+  assert.doesNotMatch(text(), /Ya tenés el plan Core activo/);
+  assert.doesNotMatch(text(), /Ir a la entrevista/);
+  const box = document.querySelector('input[type="checkbox"]');
+  assert.ok(box, 'hay casilla de Términos');
+  assert.equal(box.disabled, false);
+});
+
+test('sin acceso por mora vencida: no ofrece «Ir a la entrevista» (volvería a la misma pantalla)', async () => {
+  goTo('');
+  installFetch({
+    '/subscriptions/me': { status: 200, body: { paymentsEnabled: true, paymentsMode: 'live', subscription: { id: 's1', status: 'en_mora', planName: 'Core' }, diagnostico: null, entitlement: { enforced: true, allowed: false, reason: 'grace_expired' } } },
+    '/plans': { status: 200, body: { plans: PLANS } },
+  });
+  await mountGate();
+  assert.match(text(), /Elegí tu plan/);
+  assert.doesNotMatch(text(), /Ir a la entrevista/);
+});
+
 test('filtro: modo "live" con acceso → entrevista', async () => {
   goTo('');
   installFetch({ '/subscriptions/me': me('live', true) });
