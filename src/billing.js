@@ -143,6 +143,13 @@ export function checkoutErrorMessage(data) {
   return CHECKOUT_ERRORS[data?.code] || data?.error || 'No pudimos abrir el pago. Probá de nuevo en unos minutos.';
 }
 
+// ¿La persona ya tiene una suscripción vigente (o en curso de cobro)? Si sí, no tiene nada que
+// elegir ni aceptar en la pantalla de planes.
+export function hasOpenSubscription(billing) {
+  const s = billing?.subscription;
+  return !!s && ['activa', 'en_mora', 'pausada', 'cortesia'].includes(s.status);
+}
+
 // Nombre del plan para mostrar en el chip de la entrevista (p. ej. "Activo").
 // Solo si la suscripción está vigente; sin plan o en mora/cancelada, null (no se muestra nada).
 export function activePlanName(billing) {

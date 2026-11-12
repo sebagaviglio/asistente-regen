@@ -342,6 +342,11 @@ export default function PlansScreen({ session, status, billing, invitation = nul
         <p className="ob-lead">Cada plan describe lo que incluye. Los precios son finales, con impuestos incluidos.</p>
 
         {notice && <p className={`bl-notice bl-notice--${notice.tone}`}>{notice.text}</p>}
+        {hasOpenSub && (
+          <button type="button" className="pf-submit" onClick={() => window.location.assign('/')}>
+            Ir a la entrevista
+          </button>
+        )}
         {isMinor && (
           <p className="bl-notice bl-notice--warn">
             Por ahora la suscripción es solo para mayores de 18 años. Tu ficha médica sigue disponible.
@@ -360,7 +365,7 @@ export default function PlansScreen({ session, status, billing, invitation = nul
             }}
           />
         )}
-        {invPlan && <p className="bl-notice bl-notice--ok">Tenés una invitación a REGEN {invPlan === 'core' ? 'Core' : 'Activo'}. Revisá el plan y confirmá para activarla.</p>}
+        {invPlan && !hasOpenSub && <p className="bl-notice bl-notice--ok">Tenés una invitación a REGEN {invPlan === 'core' ? 'Core' : 'Activo'}. Revisá el plan y confirmá para activarla.</p>}
 
         {plans === undefined && <p className="ra-hint">Cargando planes…</p>}
         {plans === null && <p className="pf-error">No pudimos cargar los planes. Probá de nuevo en unos minutos.</p>}

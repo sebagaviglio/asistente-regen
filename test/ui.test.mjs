@@ -179,7 +179,8 @@ test('Elite: el pedido se envía y se muestra la confirmación', async () => {
 });
 
 // ── Vuelta de Mercado Pago ───────────────────────────────────────────────
-function goTo(search) { dom.reconfigure({ url: `https://asistente.regen.ar/${search}` }); }
+function goTo(search, path = '') { dom.reconfigure({ url: `https://asistente.regen.ar/${path}${search}` }); }
+globalThis.localStorage = dom.window.localStorage;
 
 test('vuelta: espera la confirmación del Worker y recién ahí dice "activa"', async () => {
   goTo('?pago=suscripcion&ref=s1');
@@ -243,6 +244,44 @@ test('filtro: si el Worker no responde (ruta inexistente o sin red) → entra a 
   installFetch({ '/subscriptions/me': { status: 404, body: { error: 'x' } } });
   await mountGate();
   assert.match(text(), /PANTALLA ENTREVISTA/);
+});
+
+// Bug real (iPhone): una invitación a Core/Activo ya usada seguía mandando a la pantalla de planes
+// en cada visita, con la casilla de Términos bloqueada porque ya había plan. No tenía salida.
+const withSub = (status, planName = 'Core') => ({
+  status: 200,
+  body: { paymentsEnabled: true, paymentsMode: 'test', subscription: { id: 's1', status, planName }, diagnostico: null, entitlement: { enforced: false, allowed: true, reason: 'active' } },
+});
+const INVITE = JSON.stringify({ code: 'REGEN-AB12-CD34', plan: 'core' });
+
+test('invitación vieja + plan ya activo → entra a la entrevista y la invitación se descarta', async () => {
+  goTo('');
+  localStorage.setItem('regen_invitation', INVITE);
+  installFetch({ '/subscriptions/me': withSub('activa'), '/plans': { status: 200, body: { plans: PLANS } } });
+  await mountGate();
+  await tick(5);
+  assert.match(text(), /PANTALLA ENTREVISTA/);
+  assert.doesNotMatch(text(), /Elegí tu plan/);
+  assert.equal(localStorage.getItem('regen_invitation'), null);
+});
+
+test('invitación vigente y SIN plan → sigue viendo sus planes para confirmar', async () => {
+  goTo('');
+  localStorage.setItem('regen_invitation', INVITE);
+  installFetch({ '/subscriptions/me': me('test', true), '/plans': { status: 200, body: { plans: PLANS } }, '/coupons/validate': { status: 200, body: { valid: false } } });
+  await mountGate();
+  assert.match(text(), /Elegí tu plan/);
+  assert.match(text(), /Tenés una invitación a REGEN Core/);
+  localStorage.removeItem('regen_invitation');
+});
+
+test('en /planes con plan activo: aviso, botón «Ir a la entrevista» y sin invitación pendiente', async () => {
+  goTo('', 'planes');
+  installFetch({ '/subscriptions/me': withSub('activa'), '/plans': { status: 200, body: { plans: PLANS } } });
+  await mountGate();
+  assert.match(text(), /Ya tenés el plan Core activo/);
+  assert.match(text(), /Ir a la entrevista/);
+  assert.doesNotMatch(text(), /Tenés una invitación/);
 });
 
 test('filtro: modo "live" con acceso → entrevista', async () => {
