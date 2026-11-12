@@ -147,7 +147,10 @@ export function checkoutErrorMessage(data) {
 // elegir ni aceptar en la pantalla de planes.
 export function hasOpenSubscription(billing) {
   const s = billing?.subscription;
-  return !!s && ['activa', 'en_mora', 'pausada', 'cortesia'].includes(s.status);
+  if (!s) return false;
+  // Una cortesía vencida ya no es una suscripción abierta: la persona tiene que poder elegir un plan.
+  if (s.status === 'cortesia' && billing?.entitlement?.reason === 'courtesy_expired') return false;
+  return ['activa', 'en_mora', 'pausada', 'cortesia'].includes(s.status);
 }
 
 // Nombre del plan para mostrar en el chip de la entrevista (p. ej. "Activo").
