@@ -10,6 +10,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from './supabaseClient';
 import { fetchBilling, isPaymentConfirmed } from './billing';
+import { clearSalesLink } from './salesLink';
 import './App.css';
 import './Onboarding.css';
 
@@ -18,9 +19,9 @@ const MAX_TRIES = 20;
 
 export default function PaymentReturn({ session, onBilling }) {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
-  const kind = params.get('pago'); // 'suscripcion' | 'diagnostico'
+  const kind = params.get('pago'); // 'suscripcion' | 'diagnostico' | 'pack'
   const ref = params.get('ref');
-  const failedAtMp = kind === 'diagnostico' && params.get('estado') === 'error';
+  const failedAtMp = (kind === 'diagnostico' || kind === 'pack') && params.get('estado') === 'error';
 
   const [phase, setPhase] = useState(failedAtMp ? 'failed' : 'checking'); // checking | ok | waiting | failed
   const [attempt, setAttempt] = useState(0);
@@ -35,6 +36,7 @@ export default function PaymentReturn({ session, onBilling }) {
       const billing = await fetchBilling(token);
       if (!alive) return;
       if (isPaymentConfirmed(billing, kind, ref)) {
+        clearSalesLink(); // el link de WhatsApp ya cumplió su función
         onBilling?.(billing);
         setPhase('ok');
         return;
@@ -54,6 +56,7 @@ export default function PaymentReturn({ session, onBilling }) {
   }, [attempt, failedAtMp, kind, ref, token, onBilling]);
 
   const isSub = kind === 'suscripcion';
+  const isPack = kind === 'pack';
 
   return (
     <div className="ra-app">
@@ -78,7 +81,29 @@ export default function PaymentReturn({ session, onBilling }) {
             </>
           )}
 
-          {phase === 'ok' && (
+          {phase === 'ok' && isPack && (
+            <>
+              <h1 className="ob-title">¡Listo! Recibimos el pago de tu Pack Fundador.</h1>
+              <p className="ob-lead">
+                Ya tenés tu primer mes de Activo. El equipo te contacta en las próximas 48 horas hábiles para coordinar la extracción a
+                domicilio. Te vamos a enviar el comprobante por email.
+              </p>
+              <p className="ob-lead">
+                Último paso: autorizá Activo desde el mes 2 para seguir sin cortes, con el precio congelado. No se cobra nada hasta que
+                termine tu mes incluido.
+              </p>
+              <div className="pf-actions">
+                <button type="button" className="pf-skip" onClick={() => window.location.assign('/')}>
+                  Más tarde
+                </button>
+                <button type="button" className="pf-submit" onClick={() => window.location.assign('/planes')}>
+                  Hacer el paso 2
+                </button>
+              </div>
+            </>
+          )}
+
+          {phase === 'ok' && !isPack && (
             <>
               <h1 className="ob-title">{isSub ? '¡Listo! Tu suscripción está activa.' : 'Recibimos el pago de tu Diagnóstico inicial.'}</h1>
               <p className="ob-lead">

@@ -11,7 +11,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from './supabaseClient';
 import { makeApi, ageFromISO } from './api';
-import { fetchPlans, planView, checkoutErrorMessage, validateCoupon, couponView } from './billing';
+import { fetchPlans, fetchPackStatus, planView, checkoutErrorMessage, validateCoupon, couponView, packStep2, formatDateAR, formatArs } from './billing';
+import { salesLinkPlanKey } from './salesLink';
 import { TERMS_VERSION, TERMS_SECTIONS } from './termsText';
 import { clearInvitation, inviteErrorMessage } from './invitation';
 import './App.css';
@@ -142,6 +143,48 @@ function PlanCard({ item, selected, onSelect, blocked, paid }) {
   );
 }
 
+// Paso 2 del Pack Fundador: autorizar Activo a precio congelado. El primer cobro es cuando termina
+// el mes incluido; hasta entonces no se cobra nada.
+function PackStep2({ api, until, redirect }) {
+  const [accepted, setAccepted] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const date = formatDateAR(until);
+
+  async function authorize() {
+    setBusy(true);
+    setError(null);
+    const { ok, data } = await api.post('/checkout', { planKey: 'activo_fundador', termsVersion: TERMS_VERSION });
+    if (ok && data?.checkoutUrl) {
+      redirect(data.checkoutUrl);
+      return;
+    }
+    setBusy(false);
+    setError(checkoutErrorMessage(data));
+  }
+
+  return (
+    <section className="bl-card is-selected" aria-label="Paso 2 del Pack Fundador">
+      <header className="bl-card__head">
+        <h2 className="bl-card__title">Paso 2: seguí en Activo a precio fundador</h2>
+      </header>
+      <p className="ob-lead">
+        Tu mes de Activo incluido en el Pack {date ? `termina el ${date}` : 'ya está en marcha'}. Autorizá ahora la suscripción para seguir
+        sin cortes: el primer cobro es {date ? `el ${date}` : 'cuando termina ese mes'} y el precio queda congelado hasta junio de 2027.
+        Podés pasar a Core o cancelar cuando quieras desde Mercado Pago.
+      </p>
+      <label className="ob-check">
+        <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} />
+        <span>Leí y acepto los Términos y Condiciones.</span>
+      </label>
+      {error && <p className="pf-error">{error}</p>}
+      <button type="button" className="pf-submit" disabled={!accepted || busy} onClick={authorize}>
+        {busy ? 'Abriendo Mercado Pago…' : 'Autorizar Activo desde el mes 2'}
+      </button>
+    </section>
+  );
+}
+
 // Invitación Elite: el código crea un pedido prioritario; el equipo contacta a la persona.
 function EliteInvitation({ invitation, api, disabled, onDone }) {
   const [phase, setPhase] = useState('idle'); // idle | sending | sent
@@ -185,13 +228,15 @@ function EliteInvitation({ invitation, api, disabled, onDone }) {
   );
 }
 
-export default function PlansScreen({ session, status, billing, invitation = null, redirect = (url) => window.location.assign(url) }) {
+export default function PlansScreen({ session, status, billing, invitation = null, salesLink = null, redirect = (url) => window.location.assign(url) }) {
   const api = useMemo(() => makeApi(session.access_token), [session.access_token]);
   // Invitación Core/Activo: arranca con el plan elegido y el código cargado.
   const invPlan = invitation && invitation.plan !== 'elite' ? invitation.plan : null;
   const invCode = invPlan ? invitation.code : null;
   const [plans, setPlans] = useState(undefined); // undefined = cargando · null = error
-  const [selected, setSelected] = useState(invPlan);
+  const [selected, setSelected] = useState(invPlan || salesLinkPlanKey(salesLink));
+  const withPack = salesLink?.offer === 'pack' || !!billing?.pack;
+  const [pack, setPack] = useState(null); // cupos y fecha límite del Pack Fundador
   const [accepted, setAccepted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -204,11 +249,12 @@ export default function PlansScreen({ session, status, billing, invitation = nul
 
   useEffect(() => {
     let alive = true;
-    fetchPlans().then((p) => alive && setPlans(p));
+    fetchPlans({ withPack }).then((p) => alive && setPlans(p));
+    if (withPack) fetchPackStatus().then((st) => alive && setPack(st));
     return () => {
       alive = false;
     };
-  }, []);
+  }, [withPack]);
 
   // Con los planes cargados, aplica el código de la invitación.
   useEffect(() => {
@@ -242,6 +288,10 @@ export default function PlansScreen({ session, status, billing, invitation = nul
   const subscriptionPlans = ['core', 'activo'].map(find).filter(Boolean);
   const elite = find('elite');
   const diagnostico = find('diagnostico');
+  const packPaid = billing?.pack?.status === 'pagada';
+  // El Pack se muestra con el link de venta, si no se pagó y si quedan cupos.
+  const packItem = !packPaid && pack?.open !== false ? find('pack_fundador') : null;
+  const step2 = packStep2(billing);
   const selectedView = selected ? find(selected) : null;
 
   const selectedKind = selectedView ? selectedView.plan.kind : null;
@@ -298,6 +348,7 @@ export default function PlansScreen({ session, status, billing, invitation = nul
     setError(null);
     const body = { planKey: selected, termsVersion: TERMS_VERSION };
     if (coupon) body.couponCode = coupon.code;
+    if (salesLink?.lead) body.leadRef = salesLink.lead;
     const { ok, data } = await api.post('/checkout', body);
     if (ok && data?.free) {
       // Cupón de acceso sin costo: no hay pago. Se vuelve por la pantalla de confirmación.
@@ -322,9 +373,11 @@ export default function PlansScreen({ session, status, billing, invitation = nul
     ? 'Elegí un plan'
     : offerView
       ? offerView.payLabel
-      : selected === 'diagnostico'
-        ? `Pagar ${selectedView.view.price}`
-        : `Suscribirme por ${selectedView.view.price} al mes`;
+      : selected === 'pack_fundador'
+        ? `Pagar ${selectedView.view.price} (hasta 3 cuotas)`
+        : selected === 'diagnostico'
+          ? `Pagar ${selectedView.view.price}`
+          : `Suscribirme por ${selectedView.view.price} al mes`;
 
   return (
     <div className="ra-app">
@@ -376,8 +429,21 @@ export default function PlansScreen({ session, status, billing, invitation = nul
         {plans === undefined && <p className="ra-hint">Cargando planes…</p>}
         {plans === null && <p className="pf-error">No pudimos cargar los planes. Probá de nuevo en unos minutos.</p>}
 
+        {step2 && <PackStep2 api={api} until={step2.until} redirect={redirect} />}
+
         {plans && (
           <>
+            {packItem && (
+              <section className="bl-extra" aria-label="Pack Fundador">
+                <p className="bl-extra__lead">
+                  La forma recomendada de empezar: medís tu punto de partida y tenés tu primer mes de Activo incluido.
+                  {pack?.cuposRestantes != null && pack?.activoPriceArs != null
+                    ? ` Quedan ${pack.cuposRestantes} cupos. Desde el mes 2, Activo a ${formatArs(pack.activoPriceArs)} por mes.`
+                    : ''}
+                </p>
+                <PlanCard item={packItem} selected={selected} onSelect={setSelected} blocked={blocked} paid={false} />
+              </section>
+            )}
             <section className="bl-grid" aria-label="Planes">
               {subscriptionPlans.map((item) => (
                 <PlanCard key={item.plan.key} item={item} selected={selected} onSelect={setSelected} blocked={blocked} paid={false} />

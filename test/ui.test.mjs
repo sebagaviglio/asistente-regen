@@ -471,3 +471,81 @@ test('vuelta de un cupón gratis: una suscripción de cortesía cuenta como conf
   await tick(5);
   assert.match(text(), /Tu suscripción está activa/);
 });
+
+// ── Pack Fundador (link de WhatsApp) ─────────────────────────────────────
+const PACK_PLAN = { key: 'pack_fundador', name: 'Pack Fundador', kind: 'one_time', showPrice: true, priceArs: 379999, voiceMinutesMonth: null, validationsInitial: 1, validationsRecurring: 0, validationsEveryMonths: 0 };
+
+test('link del Pack: muestra el Pack con los cupos, preseleccionado, y paga con el lead', async () => {
+  const calls = installFetch({
+    '/plans?pack=fundador': { status: 200, body: { plans: [PACK_PLAN, ...PLANS] } },
+    '/pack-fundador': { status: 200, body: { open: true, cuposRestantes: 12, cuposTotal: 40, priceArs: 379999, activoPriceArs: 139999, hasta: '2026-12-31' } },
+    '/checkout': { status: 201, body: { kind: 'order', orderId: 'o1', checkoutUrl: 'https://mp.test/pref-1' } },
+  });
+  let redirected = null;
+  await mount(React.createElement(PlansScreen, {
+    session, status: adult, salesLink: { offer: 'pack', lead: 'abcdEFGH1234' }, redirect: (u) => { redirected = u; },
+    billing: { paymentsEnabled: true, paymentsMode: 'test', subscription: null, diagnostico: null },
+  }));
+  await tick(5);
+  assert.match(text(), /Pack Fundador/);
+  assert.match(text(), /Quedan 12 cupos/);
+  assert.match(q('.bl-pay .pf-submit').textContent, /Pagar \$379\.999 \(hasta 3 cuotas\)/);
+  await click(q('.bl-pay input[type="checkbox"]'));
+  await click(q('.bl-pay .pf-submit'));
+  await tick(5);
+  const checkout = calls.find((c) => c.path === '/checkout');
+  assert.deepEqual(checkout.body, { planKey: 'pack_fundador', termsVersion: '2026-10-v1-borrador', leadRef: 'abcdEFGH1234' });
+  assert.equal(redirected, 'https://mp.test/pref-1');
+});
+
+test('link del Pack con cupos agotados: no lo ofrece', async () => {
+  installFetch({
+    '/plans?pack=fundador': { status: 200, body: { plans: [PACK_PLAN, ...PLANS] } },
+    '/pack-fundador': { status: 200, body: { open: false, cuposRestantes: 0 } },
+  });
+  await mount(React.createElement(PlansScreen, {
+    session, status: adult, salesLink: { offer: 'pack', lead: null },
+    billing: { paymentsEnabled: true, paymentsMode: 'test', subscription: null, diagnostico: null },
+  }));
+  await tick(5);
+  assert.doesNotMatch(text(), /Pack Fundador/);
+});
+
+test('paso 2 del Pack: explica el primer cobro y autoriza Activo fundador', async () => {
+  const calls = installFetch({
+    '/plans?pack=fundador': { status: 200, body: { plans: [PACK_PLAN, ...PLANS] } },
+    '/pack-fundador': { status: 200, body: { open: true, cuposRestantes: 11 } },
+    '/checkout': { status: 201, body: { kind: 'subscription', subscriptionId: 's1', checkoutUrl: 'https://mp.test/pre-1' } },
+  });
+  let redirected = null;
+  await mount(React.createElement(PlansScreen, {
+    session, status: adult, redirect: (u) => { redirected = u; },
+    billing: {
+      paymentsEnabled: true, paymentsMode: 'test', diagnostico: null,
+      subscription: { id: 's1', status: 'cortesia', planName: 'Activo (precio fundador)' },
+      entitlement: { allowed: true, reason: 'courtesy' },
+      pack: { orderId: 'o1', status: 'pagada', activoPaso2: 'pendiente', mesIncluidoHasta: '2026-12-15 13:00:00' },
+    },
+  }));
+  await tick(5);
+  assert.match(text(), /Paso 2/);
+  assert.match(text(), /el primer cobro es el 15\/12\/2026/);
+  const step = q('[aria-label="Paso 2 del Pack Fundador"]');
+  assert.equal(step.querySelector('.pf-submit').disabled, true);
+  await click(step.querySelector('input[type="checkbox"]'));
+  await click(step.querySelector('.pf-submit'));
+  await tick(5);
+  assert.deepEqual(calls.find((c) => c.path === '/checkout').body, { planKey: 'activo_fundador', termsVersion: '2026-10-v1-borrador' });
+  assert.equal(redirected, 'https://mp.test/pre-1');
+});
+
+test('vuelta del Pack: confirma con el Worker y ofrece el paso 2', async () => {
+  goTo('?pago=pack&ref=o1&estado=ok');
+  installFetch({
+    '/subscriptions/me': { status: 200, body: { pack: { orderId: 'o1', status: 'pagada', activoPaso2: 'pendiente' } } },
+  });
+  await mount(React.createElement(PaymentReturn, { session }));
+  await tick(5);
+  assert.match(text(), /Recibimos el pago de tu Pack Fundador/);
+  assert.match(text(), /Hacer el paso 2/);
+});

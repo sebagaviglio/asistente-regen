@@ -6,6 +6,7 @@
 import { cloneElement, isValidElement, lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { fetchBilling, decideGate, activePlanName, hasOpenSubscription } from './billing';
 import { readInvitation, clearInvitation } from './invitation';
+import { readSalesLink, clearSalesLink } from './salesLink';
 import LoadingScreen from './LoadingScreen';
 
 // Planes y vuelta de Mercado Pago no se ven en cada visita: se cargan al abrirlas.
@@ -40,11 +41,22 @@ export default function BillingGate({ session, status, children }) {
     if (staleInvitation) clearInvitation();
   }, [staleInvitation]);
 
+  // Link de compra del agente de WhatsApp: muestra los planes con la oferta elegida, salvo que la
+  // persona ya tenga un plan (entonces el link ya no tiene sentido y se descarta).
+  const salesLink = readSalesLink();
+  const staleSalesLink = !!salesLink && hasOpenSubscription(billing);
+  useEffect(() => {
+    if (staleSalesLink) clearSalesLink();
+  }, [staleSalesLink]);
+  const showSalesLink = !!salesLink && !!billing && !staleSalesLink;
+
   if (screen === 'loading') return <LoadingScreen />;
   if (screen === 'return') return withFallback(<PaymentReturn session={session} onBilling={onBilling} />);
   // Quien llega con una invitación ve primero sus planes, aunque los pagos todavía no bloqueen a nadie.
-  if (screen === 'plans' || (invitation && billing && !staleInvitation)) {
-    return withFallback(<PlansScreen session={session} status={status} billing={billing} invitation={invitation} />);
+  if (screen === 'plans' || (invitation && billing && !staleInvitation) || showSalesLink) {
+    return withFallback(
+      <PlansScreen session={session} status={status} billing={billing} invitation={invitation} salesLink={staleSalesLink ? null : salesLink} />
+    );
   }
   // La entrevista muestra el plan activo en un chip: se lo pasamos sin tocar nada más.
   const planName = activePlanName(billing);

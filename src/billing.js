@@ -7,9 +7,10 @@
 import { makeApi, WORKER_URL } from './api.js';
 
 // ── Llamadas al Worker ───────────────────────────────────────────────────
-export async function fetchPlans() {
+// withPack: incluye el Pack Fundador (plan oculto que solo se ofrece con el link de venta).
+export async function fetchPlans({ withPack = false } = {}) {
   try {
-    const res = await fetch(`${WORKER_URL}/plans`);
+    const res = await fetch(`${WORKER_URL}/plans${withPack ? '?pack=fundador' : ''}`);
     if (!res.ok) return null;
     const data = await res.json();
     return Array.isArray(data.plans) ? data.plans : null;
@@ -22,6 +23,17 @@ export async function fetchPlans() {
 export async function fetchBilling(accessToken) {
   const { ok, data } = await makeApi(accessToken).post('/subscriptions/me');
   return ok && data ? data : null;
+}
+
+// Pack Fundador: cupos y fecha límite (público). null = no se pudo consultar.
+export async function fetchPackStatus() {
+  try {
+    const res = await fetch(`${WORKER_URL}/pack-fundador`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
 }
 
 // Cupón: cuánto queda el precio de ese plan con ese código. No reserva nada.
@@ -57,6 +69,16 @@ export function validationsText(plan) {
 
 // Lo que incluye cada plan (según la planilla de precios de REGEN). Los topes salen del Worker.
 const PLAN_COPY = {
+  pack_fundador: {
+    title: 'Pack Fundador',
+    note: 'Pago único, hasta 3 cuotas',
+    items: [
+      'Diagnóstico inicial: análisis de biomarcadores con extracción a domicilio y lectura con un médico',
+      'Primer mes de Activo con coach incluido',
+      'Desde el mes 2, Activo a precio fundador congelado hasta junio de 2027',
+      'Podés pasar a Core o cancelar desde el mes 2, sin costo',
+    ],
+  },
   diagnostico: {
     title: 'Diagnóstico inicial',
     note: 'Pago único',
@@ -138,6 +160,9 @@ const CHECKOUT_ERRORS = {
   ALREADY_SUBSCRIBED: 'Ya tenés una suscripción. Si hay un problema con el cobro, revisá tu medio de pago en Mercado Pago.',
   PAYMENTS_OFF: 'Los pagos todavía no están habilitados.',
   USE_ELITE_REQUEST: 'El plan Elite se solicita con el botón “Quiero ser Elite”.',
+  PACK_CLOSED: 'Los cupos del Pack Fundador se agotaron o la promoción terminó. Podés empezar con el Diagnóstico inicial.',
+  PACK_REQUIRED: 'Este paso es para quienes ya pagaron el Pack Fundador.',
+  COUPON_NOT_APPLICABLE: 'El Pack Fundador no admite cupones.',
 };
 export function checkoutErrorMessage(data) {
   return CHECKOUT_ERRORS[data?.code] || data?.error || 'No pudimos abrir el pago. Probá de nuevo en unos minutos.';
@@ -193,5 +218,24 @@ export function isPaymentConfirmed(billing, kind, ref) {
     const d = billing.diagnostico;
     return !!d && d.status === 'pagada' && (!ref || d.orderId === ref);
   }
+  if (kind === 'pack') {
+    const p = billing.pack;
+    return !!p && p.status === 'pagada' && (!ref || p.orderId === ref);
+  }
   return false;
+}
+
+// Paso 2 del Pack: falta autorizar Activo desde el mes 2. Devuelve la fecha de fin del mes incluido o null.
+export function packStep2(billing) {
+  const p = billing?.pack;
+  if (!p || p.status !== 'pagada' || p.activoPaso2 !== 'pendiente') return null;
+  return { until: p.mesIncluidoHasta || null };
+}
+
+// "15/12/2026" a partir de 'YYYY-MM-DD HH:MM:SS' (UTC del Worker), en hora de Argentina.
+export function formatDateAR(sqlDate) {
+  if (!sqlDate) return '';
+  const d = new Date(String(sqlDate).replace(' ', 'T') + 'Z');
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Cordoba', day: '2-digit', month: '2-digit', year: 'numeric' });
 }

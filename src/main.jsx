@@ -16,8 +16,10 @@ import './Billing.css'
 import './Turnos.css'
 import App from './App.jsx'
 import { captureInvitationFromUrl } from './invitation.js'
+import { captureSalesLinkFromUrl } from './salesLink.js'
 
 captureInvitationFromUrl()
+captureSalesLinkFromUrl()
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
