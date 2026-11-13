@@ -10,6 +10,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from './supabaseClient';
 import { fetchBilling, isPaymentConfirmed } from './billing';
+import { clearSalesLink } from './salesLink';
 import './App.css';
 import './Onboarding.css';
 
@@ -35,6 +36,7 @@ export default function PaymentReturn({ session, onBilling }) {
       const billing = await fetchBilling(token);
       if (!alive) return;
       if (isPaymentConfirmed(billing, kind, ref)) {
+        clearSalesLink(); // el link de WhatsApp ya cumplió su función
         onBilling?.(billing);
         setPhase('ok');
         return;

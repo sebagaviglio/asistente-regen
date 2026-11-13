@@ -471,3 +471,22 @@ test('vuelta de un cupón gratis: una suscripción de cortesía cuenta como conf
   await tick(5);
   assert.match(text(), /Tu suscripción está activa/);
 });
+
+// ── Link de suscripción del agente de WhatsApp ──────────────────────────
+test('link de WhatsApp: Activo ya elegido y la suscripción viaja con el lead', async () => {
+  const calls = installFetch({
+    '/plans': { status: 200, body: { plans: PLANS } },
+    '/checkout': { status: 201, body: { kind: 'subscription', checkoutUrl: 'https://mp.test/pre-1', subscriptionId: 's1' } },
+  });
+  let redirected = null;
+  await mount(React.createElement(PlansScreen, {
+    session, status: adult, salesLink: { plan: 'activo', lead: 'abcdEFGH1234' }, redirect: (u) => { redirected = u; },
+    billing: { paymentsEnabled: true, paymentsMode: 'test', subscription: null, diagnostico: null },
+  }));
+  assert.match(q('.bl-pay .pf-submit').textContent, /Suscribirme por \$139\.999 al mes/);
+  await click(q('.bl-pay input[type="checkbox"]'));
+  await click(q('.bl-pay .pf-submit'));
+  await tick(5);
+  assert.deepEqual(calls.find((c) => c.path === '/checkout').body, { planKey: 'activo', termsVersion: '2026-10-v1-borrador', leadRef: 'abcdEFGH1234' });
+  assert.equal(redirected, 'https://mp.test/pre-1');
+});

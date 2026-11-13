@@ -185,13 +185,13 @@ function EliteInvitation({ invitation, api, disabled, onDone }) {
   );
 }
 
-export default function PlansScreen({ session, status, billing, invitation = null, redirect = (url) => window.location.assign(url) }) {
+export default function PlansScreen({ session, status, billing, invitation = null, salesLink = null, redirect = (url) => window.location.assign(url) }) {
   const api = useMemo(() => makeApi(session.access_token), [session.access_token]);
   // Invitación Core/Activo: arranca con el plan elegido y el código cargado.
   const invPlan = invitation && invitation.plan !== 'elite' ? invitation.plan : null;
   const invCode = invPlan ? invitation.code : null;
   const [plans, setPlans] = useState(undefined); // undefined = cargando · null = error
-  const [selected, setSelected] = useState(invPlan);
+  const [selected, setSelected] = useState(invPlan || salesLink?.plan || null);
   const [accepted, setAccepted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -298,6 +298,7 @@ export default function PlansScreen({ session, status, billing, invitation = nul
     setError(null);
     const body = { planKey: selected, termsVersion: TERMS_VERSION };
     if (coupon) body.couponCode = coupon.code;
+    if (salesLink?.lead) body.leadRef = salesLink.lead;
     const { ok, data } = await api.post('/checkout', body);
     if (ok && data?.free) {
       // Cupón de acceso sin costo: no hay pago. Se vuelve por la pantalla de confirmación.
