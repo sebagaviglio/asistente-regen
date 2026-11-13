@@ -493,44 +493,6 @@ export default function InterviewScreen({ session: authSession, intake, onNeedsO
             )}
             <VoiceOrb readLevel={readLevel} active={isLive} />
             <CaptionBubbles items={captions} reserve={isLive} />
-            {phase === 'live' && (
-              <div className="ra-attach">
-                <p className="ra-hint">¿Querés mostrar algo? Una foto de la piel o el cuerpo, un estudio, un producto.</p>
-                <div className="ra-attach__actions">
-                  <button type="button" disabled={attachBusy} onClick={() => cameraInputRef.current?.click()}>
-                    Sacar foto
-                  </button>
-                  <button type="button" disabled={attachBusy} onClick={() => fileInputRef.current?.click()}>
-                    Adjuntar
-                  </button>
-                </div>
-                <p className="ra-attach__privacy">Solo las ve el equipo de REGEN.</p>
-                {attachBusy && <p className="ra-hint" role="status">Subiendo…</p>}
-                {attachMsg && (
-                  <p className={`ra-hint ${attachMsg.type === 'error' ? 'ra-hint--warning' : ''}`} role="status">
-                    {attachMsg.text}
-                  </p>
-                )}
-                <input
-                  ref={cameraInputRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  hidden
-                  aria-label="Sacar foto"
-                  onChange={handleAttachFiles}
-                />
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept={ACCEPT_ANY}
-                  multiple
-                  hidden
-                  aria-label="Adjuntar archivo"
-                  onChange={handleAttachFiles}
-                />
-              </div>
-            )}
             {phase === 'live' && confirmEnd && (
               <div className="ra-confirm" role="alertdialog" aria-label="Terminar la entrevista">
                 <p>
@@ -581,6 +543,43 @@ export default function InterviewScreen({ session: authSession, intake, onNeedsO
 
       {(phase === 'idle' || phase === 'connecting' || phase === 'live' || phase === 'ended') && (
         <div className="ra-dock ra-dock--call">
+          {phase === 'live' && (
+            <div className="ra-attach">
+              <div className="ra-attach__actions">
+                <button type="button" disabled={attachBusy} onClick={() => cameraInputRef.current?.click()}>
+                  Sacar foto
+                </button>
+                <button type="button" disabled={attachBusy} onClick={() => fileInputRef.current?.click()}>
+                  Adjuntar
+                </button>
+              </div>
+              <p className="ra-attach__privacy">Una foto, un estudio o un producto. Solo las ve el equipo de REGEN.</p>
+              {attachBusy && <p className="ra-hint" role="status">Subiendo…</p>}
+              {attachMsg && (
+                <p className={`ra-hint ${attachMsg.type === 'error' ? 'ra-hint--warning' : ''}`} role="status">
+                  {attachMsg.text}
+                </p>
+              )}
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                hidden
+                aria-label="Sacar foto"
+                onChange={handleAttachFiles}
+              />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={ACCEPT_ANY}
+                multiple
+                hidden
+                aria-label="Adjuntar archivo"
+                onChange={handleAttachFiles}
+              />
+            </div>
+          )}
           <div className={`ra-voicebar ${isLive ? 'is-live' : ''}`}>
             <span className="ra-voicebar__status" role="status">
               {statusText}

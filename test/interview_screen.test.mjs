@@ -307,3 +307,13 @@ test('filtro de pagos: le pasa el nombre del plan a la entrevista, y sin plan no
 });
 
 test.after(async () => { await vite.close(); setTimeout(() => process.exit(0), 200).unref?.(); });
+
+test('adjuntar: «Sacar foto» y «Adjuntar» viven en la barra del pie (siempre visibles durante la llamada)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../src/InterviewScreen.jsx', import.meta.url), 'utf8');
+  const dock = src.indexOf('className="ra-dock ra-dock--call"');
+  const main = src.indexOf('<main');
+  const attach = src.indexOf('className="ra-attach"');
+  assert.ok(dock > main && attach > dock, 'el bloque de adjuntar está dentro del dock, no bajo la esfera');
+  assert.equal(src.split('className="ra-attach"').length - 1, 1, 'una sola vez');
+});
