@@ -5,6 +5,7 @@ import { WORKER_URL } from './api';
 import InterviewThread from './InterviewThread';
 import BiomarkerEvolution from './BiomarkerEvolution';
 import ProfilePanel from './ProfilePanel';
+import TurnosPanel from './TurnosPanel';
 import './FichaScreen.css';
 import './Evolution.css';
 
@@ -34,7 +35,8 @@ function formatDate(iso) {
 }
 
 export default function FichaScreen({ session, status, onProfileChanged }) {
-  const [tab, setTab] = useState('entrevistas'); // 'entrevistas' | 'evolucion' | 'perfil'
+  // ?tab=turnos: link de los emails de turnos y vuelta de Mercado Pago.
+  const [tab, setTab] = useState(() => (new URLSearchParams(window.location.search).get('tab') === 'turnos' ? 'turnos' : 'entrevistas')); // 'entrevistas' | 'turnos' | 'evolucion' | 'perfil'
   const [interviews, setInterviews] = useState(null); // null = cargando
   const [selected, setSelected] = useState(null); // detalle abierto
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -91,6 +93,7 @@ export default function FichaScreen({ session, status, onProfileChanged }) {
         <div className="ra-tabs" role="tablist">
           {[
             ['entrevistas', 'Mis entrevistas'],
+            ['turnos', 'Turnos'],
             ['evolucion', 'Mi evolución'],
             ['perfil', 'Mi perfil'],
           ].map(([key, label]) => (
@@ -110,6 +113,7 @@ export default function FichaScreen({ session, status, onProfileChanged }) {
           ))}
         </div>
 
+        {tab === 'turnos' && <TurnosPanel session={session} />}
         {tab === 'evolucion' && <BiomarkerEvolution session={session} />}
         {tab === 'perfil' && <ProfilePanel session={session} status={status} onChanged={onProfileChanged} />}
 
