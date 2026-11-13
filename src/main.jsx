@@ -13,6 +13,7 @@ import './TrendChart.css'
 import './Evolution.css'
 import './FichaScreen.css'
 import './Billing.css'
+import './Turnos.css'
 import App from './App.jsx'
 import { captureInvitationFromUrl } from './invitation.js'
 

@@ -444,6 +444,9 @@ export default function InterviewScreen({ session: authSession, intake, onNeedsO
               Plan {planName}
             </span>
           )}
+          <a className="ra-ficha-link" href="/mi-ficha?tab=turnos">
+            Turnos
+          </a>
           <a className="ra-ficha-link" href="/mi-ficha">
             Mi ficha médica
           </a>
