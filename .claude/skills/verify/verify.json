@@ -1,0 +1,57 @@
+{
+  "_nota": "Pantallas y datos simulados para verify.py. Si una pantalla nueva pide otro endpoint, sumalo en fixtures con la forma real que devuelve el Worker (regen-worker/src).",
+  "workerHost": "regen-agente.sebagaviglio.workers.dev",
+  "storageKey": "sb-ejemplo-auth-token",
+  "email": "ana@example.com",
+  "screens": [
+    { "name": "login", "path": "/", "logged": false, "ready": ".ra-auth__form" },
+    { "name": "entrevista", "path": "/", "logged": true, "ready": ".ra-voicebar__status" },
+    { "name": "ficha-entrevistas", "path": "/mi-ficha", "logged": true, "ready": ".ra-ficha" },
+    { "name": "ficha-turnos", "path": "/mi-ficha", "logged": true, "ready": ".ra-ficha", "click": [".ra-tab:nth-child(2)"] },
+    { "name": "ficha-perfil", "path": "/mi-ficha", "logged": true, "ready": ".ra-ficha", "click": [".ra-tab:nth-child(4)"] },
+    { "name": "planes", "path": "/planes", "logged": true, "ready": ".bl-card" }
+  ],
+  "fixtures": {
+    "/patients/me/profile": {
+      "onboarding": { "personalDone": true, "consentDone": true, "healthDone": true },
+      "profile": { "fullName": "Ana Pérez", "birthDate": "1985-03-02", "sex": "F", "phone": "+54 351 555 0000" },
+      "intake": { "complete": false, "missingWritten": [], "pendingCount": 2, "pending": [{ "key": "sueno", "label": "Sueño" }, { "key": "estres", "label": "Estrés" }] }
+    },
+    "/patients/me/interviews": {
+      "interviews": [
+        { "id": "i2", "status": "pendiente_validacion", "started_at": "2026-11-20 10:00:00", "session_reason": "Dormir mejor" },
+        { "id": "i1", "status": "validada", "started_at": "2026-10-01 10:00:00", "session_reason": "Primera consulta" }
+      ]
+    },
+    "/subscriptions/me": {
+      "paymentsEnabled": true, "paymentsMode": "test",
+      "subscription": { "id": "s1", "status": "activa", "planName": "Activo", "planKey": "activo" },
+      "diagnostico": null,
+      "entitlement": { "enforced": false, "allowed": true }
+    },
+    "/plans": {
+      "plans": [
+        { "key": "core", "name": "Core", "kind": "subscription", "showPrice": true, "priceArs": 59999, "voiceMinutesMonth": 20, "validationsInitial": 1, "validationsRecurring": 1, "validationsEveryMonths": 6 },
+        { "key": "activo", "name": "Activo", "kind": "subscription", "showPrice": true, "priceArs": 139999, "voiceMinutesMonth": 45, "validationsInitial": 1, "validationsRecurring": 1, "validationsEveryMonths": 3 },
+        { "key": "elite", "name": "Elite", "kind": "custom", "showPrice": false, "priceArs": null }
+      ]
+    },
+    "/appointments/mine": {
+      "upcoming": [
+        { "id": "a1", "status": "confirmado", "type": "Validación médica", "staff": "Dra. Médica", "modality": "virtual", "dateLabel": "jueves 3 de diciembre", "timeLabel": "10:00", "meetUrl": "https://meet.example.com/x", "canChange": true, "canCancel": true, "coveredBy": "plan" }
+      ],
+      "past": []
+    },
+    "/appointments/options": {
+      "types": [{ "id": "t1", "name": "Validación médica", "durationMin": 30, "coverage": "plan" }],
+      "professionals": [{ "id": "s1", "name": "Dra. Médica" }],
+      "validations": { "allowed": 1, "left": 1 },
+      "policy": { "changeLimitHours": 24 },
+      "paymentsEnabled": true,
+      "hasPhone": true
+    },
+    "/biomarkers/catalog": { "types": [] },
+    "/biomarkers/readings": { "readings": [] },
+    "/interview/messages": { "messages": [] }
+  }
+}

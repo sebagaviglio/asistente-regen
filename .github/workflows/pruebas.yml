@@ -1,0 +1,25 @@
+name: pruebas
+# Corre lint y todas las pruebas en cada PR y en cada cambio a main.
+# Para que bloquee la fusión: en GitHub, proteger main y marcar el chequeo
+# «pruebas» como obligatorio (Settings > Branches).
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+concurrency:
+  group: pruebas-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Lint y pruebas
+        run: npm run check
